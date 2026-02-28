@@ -25,10 +25,40 @@ function detectShells() {
   return available;
 }
 
+// Claude color palette terminal theme
+const TTYD_THEME = JSON.stringify({
+  background: '#3b110c',
+  foreground: '#f8eed2',
+  cursor: '#bdb7fc',
+  cursorAccent: '#3b110c',
+  selectionBackground: '#5d3d3a',
+  black: '#5d3d3a',
+  red: '#da1c1c',
+  green: '#e9e4a6',
+  yellow: '#dd5013',
+  blue: '#bdb7fc',
+  magenta: '#b06050',
+  cyan: '#c08a50',
+  white: '#f8eed2',
+  brightBlack: '#7a5955',
+  brightRed: '#e84040',
+  brightGreen: '#f0ebb8',
+  brightYellow: '#e87838',
+  brightBlue: '#d0cbff',
+  brightMagenta: '#d08878',
+  brightCyan: '#d8a868',
+  brightWhite: '#f9f5ed',
+});
+
 const SPAWN_ENV = {
   ...process.env,
   PATH: `/usr/local/bin:/opt/homebrew/bin:${process.env.PATH || ''}`
 };
+// Prevent nested tmux when server itself runs inside tmux
+delete SPAWN_ENV.TMUX;
+delete SPAWN_ENV.TMUX_PANE;
+// Prevent Claude Code from refusing to launch inside spawned terminals
+delete SPAWN_ENV.CLAUDECODE;
 
 function waitForPort(port, host = '127.0.0.1', timeout = 5000) {
   const start = Date.now();
@@ -56,6 +86,98 @@ class SessionManager extends EventEmitter {
     this.portManager = new PortManager(portRangeStart, portRangeEnd);
     this.shells = detectShells();
     this.nameCounter = 0;
+  }
+
+  async recoverSessions() {
+    let tmuxOutput;
+    try {
+      tmuxOutput = execSync('tmux list-sessions -F "#{session_name}"', {
+        encoding: 'utf-8',
+        env: SPAWN_ENV
+      }).trim();
+    } catch {
+      return; // no tmux server running
+    }
+    if (!tmuxOutput) return;
+
+    const names = tmuxOutput.split('\n').filter(n => n && SESSION_NAME_RE.test(n));
+    for (const name of names) {
+      if (this.sessions.has(name)) continue;
+      try {
+        await this.adoptSession(name);
+      } catch (err) {
+        console.warn(`[Recovery] Failed to recover session "${name}":`, err.message);
+      }
+    }
+  }
+
+  spawnTtyd(name, port, shellPath) {
+    const home = process.env.HOME || '/';
+    const tmuxArgs = ['tmux', 'new', '-A', '-s', name, '-c', home];
+    if (shellPath) tmuxArgs.push(shellPath);
+    // Tell tmux to resize to the latest client (avoids stale column count)
+    tmuxArgs.push(';', 'set-option', '-t', name, 'window-size', 'latest');
+
+    return spawn('ttyd', [
+      '-W', '-p', String(port),
+      '-b', `/terminal/${name}`,
+      '-s', '9',
+      '-t', `theme=${TTYD_THEME}`,
+      ...tmuxArgs
+    ], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: false,
+      env: SPAWN_ENV
+    });
+  }
+
+  async adoptSession(name) {
+    const port = await this.portManager.allocate();
+    const proc = this.spawnTtyd(name, port, null);
+
+    let stderrBuf = '';
+    proc.stderr.on('data', (chunk) => { stderrBuf += chunk; });
+
+    const session = {
+      name,
+      port,
+      pid: proc.pid,
+      shell: null,
+      status: 'running',
+      createdAt: new Date().toISOString(),
+      needsAction: false,
+      needsActionAt: null,
+      needsActionSnippet: null,
+      confidence: null,
+      process: proc
+    };
+
+    proc.on('exit', () => {
+      if (session.status === 'running') {
+        session.status = 'stopped';
+        session.pid = null;
+        session.process = null;
+        session.needsAction = false;
+        session.needsActionAt = null;
+        session.needsActionSnippet = null;
+        session.confidence = null;
+        this.portManager.release(port);
+        session.port = null;
+        this.emit('session:exited', this.serialize(session));
+      }
+    });
+
+    try {
+      await waitForPort(port);
+    } catch (err) {
+      proc.kill('SIGTERM');
+      this.portManager.release(port);
+      throw new Error(`ttyd failed to start: ${stderrBuf.trim() || err.message}`);
+    }
+
+    this.sessions.set(name, session);
+    console.log(`[Recovery] Recovered tmux session "${name}" on port ${port}`);
+    this.emit('session:created', this.serialize(session));
   }
 
   generateName(shell) {
@@ -96,21 +218,7 @@ class SessionManager extends EventEmitter {
     this.validateName(name);
     const shellPath = this.resolveShell(shell);
     const port = await this.portManager.allocate();
-
-    const tmuxArgs = ['tmux', 'new', '-A', '-s', name];
-    if (shellPath) tmuxArgs.push(shellPath);
-
-    const proc = spawn('ttyd', [
-      '-W', '-p', String(port),
-      '-b', `/terminal/${name}`,
-      '-s', '9',
-      '-t', 'theme={"background":"#000000"}',
-      ...tmuxArgs
-    ], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      detached: false,
-      env: SPAWN_ENV
-    });
+    const proc = this.spawnTtyd(name, port, shellPath);
 
     let stderrBuf = '';
     proc.stderr.on('data', (chunk) => { stderrBuf += chunk; });
@@ -122,6 +230,10 @@ class SessionManager extends EventEmitter {
       shell: shell || null,
       status: 'running',
       createdAt: new Date().toISOString(),
+      needsAction: false,
+      needsActionAt: null,
+      needsActionSnippet: null,
+      confidence: null,
       process: proc
     };
 
@@ -130,6 +242,10 @@ class SessionManager extends EventEmitter {
         session.status = 'stopped';
         session.pid = null;
         session.process = null;
+        session.needsAction = false;
+        session.needsActionAt = null;
+        session.needsActionSnippet = null;
+        session.confidence = null;
         this.portManager.release(port);
         session.port = null;
         this.emit('session:exited', this.serialize(session));
@@ -189,21 +305,7 @@ class SessionManager extends EventEmitter {
     }
     const shellPath = this.resolveShell(session.shell);
     const port = await this.portManager.allocate();
-
-    const tmuxArgs = ['tmux', 'new', '-A', '-s', name];
-    if (shellPath) tmuxArgs.push(shellPath);
-
-    const proc = spawn('ttyd', [
-      '-W', '-p', String(port),
-      '-b', `/terminal/${name}`,
-      '-s', '9',
-      '-t', 'theme={"background":"#000000"}',
-      ...tmuxArgs
-    ], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      detached: false,
-      env: SPAWN_ENV
-    });
+    const proc = this.spawnTtyd(name, port, shellPath);
 
     let stderrBuf = '';
     proc.stderr.on('data', (chunk) => { stderrBuf += chunk; });
@@ -239,6 +341,21 @@ class SessionManager extends EventEmitter {
 
     this.emit('session:created', this.serialize(session));
     return this.serialize(session);
+  }
+
+  updateNeedsAction(name, { needsAction, confidence, snippet }) {
+    const session = this.sessions.get(name);
+    if (!session || session.status !== 'running') return;
+
+    const changed = session.needsAction !== needsAction;
+    session.needsAction = needsAction;
+    session.confidence = confidence;
+    session.needsActionSnippet = snippet || null;
+    session.needsActionAt = needsAction ? new Date().toISOString() : null;
+
+    if (changed) {
+      this.emit('session:updated', this.serialize(session));
+    }
   }
 
   getSession(name) {

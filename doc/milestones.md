@@ -1,4 +1,4 @@
-# Web TTYd Hub - 里程碑计划
+# Claude Cursor - 里程碑计划
 
 ## 里程碑总览
 

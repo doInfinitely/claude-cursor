@@ -1,27 +1,27 @@
 :root {
-  /* Slate & Zinc Inspired Palette - Professional Dark Theme */
-  --bg-primary: #0f172a; /* Slate 900 */
-  --bg-secondary: #1e293b; /* Slate 800 */
-  --bg-tertiary: #334155; /* Slate 700 */
+  /* Claude Code Color Palette - Warm Dark Theme */
+  --bg-primary: #3b110c; /* chocolate */
+  --bg-secondary: #5d3d3a; /* cocoa */
+  --bg-tertiary: #6e4d49; /* cocoa lighter */
 
-  --bg-card: #1e293b;
-  --bg-card-hover: #334155;
+  --bg-card: #5d3d3a; /* cocoa */
+  --bg-card-hover: #6e4d49;
 
-  --border-color: #334155; /* Slate 700 */
-  --border-color-hover: #475569; /* Slate 600 */
+  --border-color: #7a5955; /* warm brown border */
+  --border-color-hover: #8b372b; /* cinnamon */
 
-  --text-primary: #f8fafc; /* Slate 50 */
-  --text-secondary: #94a3b8; /* Slate 400 */
-  --text-tertiary: #64748b; /* Slate 500 */
+  --text-primary: #f9f5ed; /* goose-down */
+  --text-secondary: #f8eed2; /* dark-cream */
+  --text-tertiary: #a0897e; /* muted warm */
 
-  /* Accents - Subtle & Professional */
-  --accent-primary: #3b82f6; /* Blue 500 */
-  --accent-hover: #2563eb; /* Blue 600 */
-  --accent-dim: rgba(59, 130, 246, 0.15);
+  /* Accents - Claude Lavender */
+  --accent-primary: #bdb7fc; /* lavender */
+  --accent-hover: #a9a1f7; /* lavender deeper */
+  --accent-dim: rgba(189, 183, 252, 0.15);
 
   --success: #10b981; /* Emerald 500 */
-  --warning: #f59e0b; /* Amber 500 */
-  --danger: #ef4444; /* Red 500 */
+  --warning: #dd5013; /* sunset-orange */
+  --danger: #da1c1c; /* gander-red */
 
   /* Dimensions */
   --sidebar-width: 260px;
@@ -80,7 +80,7 @@ body {
 
 /* Utilities */
 .glass {
-  background: rgba(30, 41, 59, 0.7);
+  background: rgba(93, 61, 58, 0.7); /* cocoa with transparency */
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);
 }
@@ -100,7 +100,7 @@ body {
 
 .btn-primary {
   background: var(--accent-primary);
-  color: #ffffff;
+  color: #3b110c;
 }
 .btn-primary:hover {
   background: var(--accent-hover);

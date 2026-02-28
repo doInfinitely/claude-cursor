@@ -25,7 +25,8 @@ function setupWebSocket(server, sessionManager) {
     'session:created',
     'session:stopped',
     'session:deleted',
-    'session:exited'
+    'session:exited',
+    'session:updated'
   ];
 
   for (const event of events) {

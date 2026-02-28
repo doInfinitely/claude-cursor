@@ -13,6 +13,10 @@ export default defineConfig({
       '/ws': {
         target: 'ws://localhost:3000',
         ws: true
+      },
+      '/terminal': {
+        target: 'http://localhost:3000',
+        ws: true
       }
     }
   }

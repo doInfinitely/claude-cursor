@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Web TTYd Hub is a web-based terminal session manager that combines ttyd (web terminal emulator) and tmux (terminal multiplexer) to provide persistent, multi-user terminal sessions accessible through a browser. Users can create multiple terminal sessions, switch between them, and access them from any device with a browser.
+Claude Cursor is a web-based terminal session manager that combines ttyd (web terminal emulator) and tmux (terminal multiplexer) to provide persistent, multi-user terminal sessions accessible through a browser. Users can create multiple terminal sessions, switch between them, and access them from any device with a browser.
 
 ## Development Commands
 

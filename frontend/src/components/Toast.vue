@@ -51,18 +51,18 @@ defineExpose({ show })
 }
 
 .toast.info {
-  background: var(--accent-cyan-dim);
-  color: var(--accent-cyan);
+  background: var(--accent-dim);
+  color: var(--accent-primary);
 }
 
 .toast.error {
-  background: var(--danger-dim);
+  background: rgba(218, 28, 28, 0.15);
   color: var(--danger);
 }
 
 .toast.success {
-  background: rgba(74, 222, 128, 0.15);
-  color: #4ade80;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
 }
 
 .toast-enter-active {

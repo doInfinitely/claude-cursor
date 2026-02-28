@@ -38,7 +38,7 @@ function cancelRemove(e) {
     :class="{ active, collapsed }"
     :title="session.name"
   >
-    <div class="status-indicator" :class="session.status"></div>
+    <div class="status-indicator" :class="[session.status, { 'needs-action': session.needsAction }]"></div>
 
     <div class="card-content" v-show="!collapsed">
       <div class="card-top">
@@ -62,6 +62,9 @@ function cancelRemove(e) {
       <div v-else class="session-info">
         <span class="pid">PID: {{ session.pid }}</span>
         <span class="status-text">{{ session.status }}</span>
+      </div>
+      <div v-if="session.needsAction && session.needsActionSnippet" class="action-snippet">
+        {{ session.needsActionSnippet }}
       </div>
     </div>
   </div>
@@ -100,8 +103,23 @@ function cancelRemove(e) {
 }
 
 .status-indicator.running {
-  background: var(--success);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+  background: #e9e4a6; /* fresh-hay */
+  box-shadow: 0 0 8px rgba(233, 228, 166, 0.4);
+}
+
+.status-indicator.needs-action {
+  background: #d97706;
+  box-shadow: 0 0 8px rgba(217, 119, 6, 0.6);
+  animation: pulse-amber 2s ease-in-out infinite;
+}
+
+@keyframes pulse-amber {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(217, 119, 6, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(217, 119, 6, 0.9);
+  }
 }
 
 .card-content {
@@ -187,6 +205,16 @@ function cancelRemove(e) {
 .confirm-no:hover {
   background: var(--bg-tertiary);
   color: var(--text-primary);
+}
+
+.action-snippet {
+  font-size: 11px;
+  color: #d97706;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  opacity: 0.9;
 }
 
 /* Collapsed state centering */

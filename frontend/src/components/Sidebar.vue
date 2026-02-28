@@ -1,20 +1,40 @@
 <script setup>
+import { computed } from "vue";
 import { useSessionStore } from "../stores/sessions";
 import SessionCard from "./SessionCard.vue";
 
 defineProps({
   collapsed: Boolean,
-  mobile: Boolean, // New prop to detect if we are in mobile mode (optional, or just use css media queries)
+  mobile: Boolean,
 });
 
 const emit = defineEmits(["create"]);
 const store = useSessionStore();
+
+const sortedSessions = computed(() => {
+  return [...store.sessions].sort((a, b) => {
+    // needsAction first
+    if (a.needsAction && !b.needsAction) return -1;
+    if (!a.needsAction && b.needsAction) return 1;
+    // then running before stopped
+    if (a.status === "running" && b.status !== "running") return -1;
+    if (a.status !== "running" && b.status === "running") return 1;
+    return 0;
+  });
+});
+
+const needsActionCount = computed(() =>
+  store.sessions.filter((s) => s.needsAction).length
+);
 </script>
 
 <template>
   <aside class="sidebar" :class="{ collapsed }">
     <div class="sidebar-header">
-      <h2 class="sidebar-title" v-show="!collapsed">Sessions</h2>
+      <h2 class="sidebar-title" v-show="!collapsed">
+        Sessions
+        <span v-if="needsActionCount" class="action-badge">{{ needsActionCount }}</span>
+      </h2>
       <button
         class="icon-btn new-session-btn"
         @click="emit('create')"
@@ -40,7 +60,7 @@ const store = useSessionStore();
 
     <div class="session-list">
       <SessionCard
-        v-for="s in store.sessions"
+        v-for="s in sortedSessions"
         :key="s.name"
         :session="s"
         :active="store.current === s.name"
@@ -88,6 +108,25 @@ const store = useSessionStore();
   letter-spacing: 0.1em;
   color: var(--text-tertiary);
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.action-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #d97706;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .new-session-btn {
@@ -97,7 +136,7 @@ const store = useSessionStore();
   gap: 8px;
   width: 100%;
   background: var(--accent-primary);
-  color: white;
+  color: #3b110c;
   border: none;
   border-radius: var(--radius-md);
   padding: 10px;

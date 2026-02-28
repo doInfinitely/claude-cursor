@@ -1,18 +1,18 @@
 <p align="center">
-  <img src="doc/logo.png" alt="Web TTYd Hub Logo" width="200" />
+  <img src="doc/logo.png" alt="Claude Cursor Logo" width="200" />
 </p>
 
-# 🚀 Web TTYd Hub
+# 🚀 Claude Cursor
 
 [中文](./README.md)
 
 > 🌌 Your terminal, in the browser. Anytime, anywhere.
 
 <p align="center">
-  <img src="assets/72643b69-16e1-44ab-841f-cc1dee1b1c0b.png" alt="Web TTYd Hub Screenshot" width="800" />
+  <img src="assets/72643b69-16e1-44ab-841f-cc1dee1b1c0b.png" alt="Claude Cursor Screenshot" width="800" />
 </p>
 
-Web TTYd Hub is a web-based terminal session manager built on ttyd + tmux. Create, manage, and switch between multiple terminal sessions right from your browser — whether you're at your desk or on your phone lying on the couch.
+Claude Cursor is a web-based terminal session manager built on ttyd + tmux, focused on running and juggling multiple Claude Code sessions. Create, manage, and switch between multiple terminals right from your browser.
 
 ## 💡 Why
 
@@ -22,7 +22,7 @@ Ever been in one of these situations?
 - 🛌 Lying in bed with a sudden idea to fix a bug, wishing you could just open a terminal?
 - ☕️ Out and about with only your phone, wanting to connect to your dev machine?
 
-**Web TTYd Hub** turns your terminal into a web service. Open a browser, and you're in. Sessions never die.
+**Claude Cursor** turns your terminal into a web service. Open a browser, and you're in. Sessions never die.
 
 ## ✨ Features
 
@@ -36,7 +36,7 @@ Ever been in one of these situations?
 
 ## 🔮 Vibe Coding: Code from Your Phone
 
-Web TTYd Hub is a natural fit for the **Vibe Coding** workflow.
+Claude Cursor is a natural fit for the **Vibe Coding** workflow.
 
 Pair it with AI coding tools like Claude Code or Cursor, and you can have a conversational programming session right from your phone — describe what you want, review the generated code, run tests. The entire dev loop works from a mobile device. On the commute, at a coffee shop, waiting in line — when inspiration strikes, just open your browser and start coding.
 
@@ -55,7 +55,7 @@ Phone / Tablet Browser 📱
     ↓
 Public Server (Asterism Server) ☁️
     ↓ Tunnel 🚇
-Intranet Dev Machine (Web TTYd Hub + Asterism Client) 💻
+Intranet Dev Machine (Claude Cursor + Asterism Client) 💻
 ```
 
 A portable cloud dev environment — as long as you have internet, you have your terminal.

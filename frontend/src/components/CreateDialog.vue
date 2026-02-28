@@ -11,6 +11,7 @@ const form = ref({
 });
 
 const loading = ref(false);
+const error = ref("");
 
 const nameHint = computed(() => {
   return form.value.name ? form.value.name : `${form.value.command}-auto`;
@@ -18,12 +19,13 @@ const nameHint = computed(() => {
 
 async function handleSubmit() {
   if (loading.value) return;
+  error.value = "";
   loading.value = true;
   try {
     await store.create(form.value);
     emit("close");
   } catch (e) {
-    console.error(e);
+    error.value = e.message;
   } finally {
     loading.value = false;
   }
@@ -46,8 +48,12 @@ async function handleSubmit() {
             type="text"
             :placeholder="nameHint"
             @keyup.enter="handleSubmit"
+            @input="error = ''"
           />
+          <span class="input-hint">Letters, numbers, hyphens and underscores only</span>
         </label>
+
+        <div v-if="error" class="error-msg">{{ error }}</div>
 
         <label class="form-group">
           <span class="label-text">Shell</span>
@@ -165,6 +171,20 @@ select:focus,
 input:focus {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.input-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.error-msg {
+  font-size: 13px;
+  color: var(--danger);
+  background: rgba(218, 28, 28, 0.1);
+  border: 1px solid rgba(218, 28, 28, 0.3);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
 }
 
 .modal-footer {

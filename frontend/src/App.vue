@@ -79,7 +79,7 @@ function handleMobileOverlayClick() {
             <path d="M13 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
-        <h1 class="toolbar-title">Web TTYd Hub</h1>
+        <h1 class="toolbar-title">Claude Cursor</h1>
       </div>
 
       <div class="toolbar-right">
@@ -152,7 +152,7 @@ function handleMobileOverlayClick() {
 .brand-logo {
   width: 20px;
   height: 20px;
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
 }
 
 .logo-wrapper {
@@ -161,7 +161,7 @@ function handleMobileOverlayClick() {
   justify-content: center;
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, rgba(0, 255, 213, 0.1), rgba(180, 74, 255, 0.1));
+  background: linear-gradient(135deg, rgba(189, 183, 252, 0.15), rgba(160, 95, 26, 0.15));
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.05);
 }

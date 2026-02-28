@@ -23,11 +23,12 @@ const iframeSrc = computed(() => {
       :key="iframeSrc"
       :src="iframeSrc"
       class="terminal-frame"
+      allow="clipboard-read; clipboard-write"
     ></iframe>
 
     <div v-else class="welcome__container">
       <div class="welcome__content">
-        <div class="logo-text">TTYd Hub</div>
+        <div class="logo-text">Claude Cursor</div>
 
         <template v-if="!currentSession">
           <p class="welcome__text">No active session selected.</p>
