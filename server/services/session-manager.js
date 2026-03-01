@@ -121,6 +121,7 @@ class SessionManager extends EventEmitter {
     // user's profile (~/.bash_profile, ~/.zprofile) for full PATH.
     // Tell tmux to resize to the latest client (avoids stale column count)
     tmuxArgs.push(';', 'set-option', '-t', name, 'window-size', 'latest');
+    tmuxArgs.push(';', 'set-option', '-t', name, 'mouse', 'on');
 
     const env = { ...SPAWN_ENV };
     if (shellPath) env.SHELL = shellPath;
