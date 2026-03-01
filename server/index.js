@@ -5,6 +5,7 @@ const http = require('http');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const SessionManager = require('./services/session-manager');
 const NeedsActionService = require('./services/needs-action');
+const DescriptionService = require('./services/description');
 const sessionsRoute = require('./routes/sessions');
 const setupWebSocket = require('./ws');
 
@@ -96,15 +97,16 @@ function createApp(portStart, portEnd) {
   });
 
   const needsActionService = new NeedsActionService(sessionManager);
+  const descriptionService = new DescriptionService(sessionManager);
 
-  return { app, server, sessionManager, needsActionService };
+  return { app, server, sessionManager, needsActionService, descriptionService };
 }
 
 async function start(port, host) {
   const portStart = parseInt(process.env.TTYD_PORT_RANGE_START || '7681', 10);
   const portEnd = parseInt(process.env.TTYD_PORT_RANGE_END || '7780', 10);
 
-  const { server, sessionManager, needsActionService } = createApp(portStart, portEnd);
+  const { server, sessionManager, needsActionService, descriptionService } = createApp(portStart, portEnd);
 
   return new Promise((resolve) => {
     server.listen(port, host, async () => {
@@ -112,7 +114,8 @@ async function start(port, host) {
       console.log(`Claude Cursor running at http://${host}:${addr.port}`);
       await sessionManager.recoverSessions();
       needsActionService.start();
-      resolve({ server, sessionManager, needsActionService });
+      descriptionService.start();
+      resolve({ server, sessionManager, needsActionService, descriptionService });
     });
   });
 }
@@ -122,10 +125,11 @@ if (require.main === module) {
   const PORT = parseInt(process.env.PORT || '3000', 10);
   const HOST = process.env.HOST || '0.0.0.0';
 
-  start(PORT, HOST).then(({ sessionManager, needsActionService }) => {
+  start(PORT, HOST).then(({ sessionManager, needsActionService, descriptionService }) => {
     function cleanup() {
       console.log('\nCleaning up...');
       needsActionService.stop();
+      descriptionService.stop();
       sessionManager.cleanup();
       process.exit(0);
     }

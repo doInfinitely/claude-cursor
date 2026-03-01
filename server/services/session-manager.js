@@ -52,6 +52,8 @@ const TTYD_THEME = JSON.stringify({
 
 const SPAWN_ENV = {
   ...process.env,
+  // Ensure common binary paths are included even if running inside Electron
+  // (electron/main.js resolves the full login PATH before loading the server)
   PATH: `/usr/local/bin:/opt/homebrew/bin:${process.env.PATH || ''}`
 };
 // Prevent nested tmux when server itself runs inside tmux
@@ -114,9 +116,14 @@ class SessionManager extends EventEmitter {
   spawnTtyd(name, port, shellPath) {
     const home = process.env.HOME || '/';
     const tmuxArgs = ['tmux', 'new', '-A', '-s', name, '-c', home];
-    if (shellPath) tmuxArgs.push(shellPath);
+    // Don't pass shell as a tmux command — instead set SHELL env var.
+    // tmux launches $SHELL as a login shell by default, which sources the
+    // user's profile (~/.bash_profile, ~/.zprofile) for full PATH.
     // Tell tmux to resize to the latest client (avoids stale column count)
     tmuxArgs.push(';', 'set-option', '-t', name, 'window-size', 'latest');
+
+    const env = { ...SPAWN_ENV };
+    if (shellPath) env.SHELL = shellPath;
 
     return spawn('ttyd', [
       '-W', '-p', String(port),
@@ -127,7 +134,7 @@ class SessionManager extends EventEmitter {
     ], {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
-      env: SPAWN_ENV
+      env
     });
   }
 
@@ -149,6 +156,7 @@ class SessionManager extends EventEmitter {
       needsActionAt: null,
       needsActionSnippet: null,
       confidence: null,
+      description: null,
       process: proc
     };
 
@@ -161,6 +169,7 @@ class SessionManager extends EventEmitter {
         session.needsActionAt = null;
         session.needsActionSnippet = null;
         session.confidence = null;
+        session.description = null;
         this.portManager.release(port);
         session.port = null;
         this.emit('session:exited', this.serialize(session));
@@ -234,6 +243,7 @@ class SessionManager extends EventEmitter {
       needsActionAt: null,
       needsActionSnippet: null,
       confidence: null,
+      description: null,
       process: proc
     };
 
@@ -246,6 +256,7 @@ class SessionManager extends EventEmitter {
         session.needsActionAt = null;
         session.needsActionSnippet = null;
         session.confidence = null;
+        session.description = null;
         this.portManager.release(port);
         session.port = null;
         this.emit('session:exited', this.serialize(session));
@@ -358,6 +369,16 @@ class SessionManager extends EventEmitter {
     }
   }
 
+  updateDescription(name, description) {
+    const session = this.sessions.get(name);
+    if (!session || session.status !== 'running') return;
+
+    if (session.description !== description) {
+      session.description = description;
+      this.emit('session:updated', this.serialize(session));
+    }
+  }
+
   getSession(name) {
     const session = this.sessions.get(name);
     if (!session) {
@@ -375,11 +396,19 @@ class SessionManager extends EventEmitter {
     return rest;
   }
 
-  cleanup() {
+  getRunningPids() {
+    const pids = [];
     for (const session of this.sessions.values()) {
-      if (session.status === 'running' && session.process) {
-        session.process.kill('SIGTERM');
+      if (session.status === 'running' && session.pid) {
+        pids.push(session.pid);
       }
+    }
+    return pids;
+  }
+
+  cleanup() {
+    for (const pid of this.getRunningPids()) {
+      try { process.kill(pid, 'SIGKILL'); } catch (e) { /* already dead */ }
     }
   }
 }

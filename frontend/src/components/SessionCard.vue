@@ -59,6 +59,9 @@ function cancelRemove(e) {
         <button class="confirm-yes" @click="confirmRemove($event, session.name)">Yes</button>
         <button class="confirm-no" @click="cancelRemove($event)">No</button>
       </div>
+      <div v-else-if="session.description" class="session-description">
+        {{ session.description }}
+      </div>
       <div v-else class="session-info">
         <span class="pid">PID: {{ session.pid }}</span>
         <span class="status-text">{{ session.status }}</span>
@@ -164,6 +167,14 @@ function cancelRemove(e) {
 .close-btn:hover {
   background: var(--bg-tertiary);
   color: var(--danger);
+}
+
+.session-description {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .session-info {
