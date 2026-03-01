@@ -1,5 +1,5 @@
 <script setup>
-import { ref, provide } from "vue";
+import { ref, provide, computed } from "vue";
 import Sidebar from "./components/Sidebar.vue";
 import TerminalView from "./components/TerminalView.vue";
 import CreateDialog from "./components/CreateDialog.vue";
@@ -7,6 +7,23 @@ import Toast from "./components/Toast.vue";
 import { useSessionStore } from "./stores/sessions";
 
 const store = useSessionStore();
+
+const shellSummary = computed(() => {
+  const running = store.sessions.filter((s) => s.status === "running");
+  if (!running.length) return "";
+  const counts = {};
+  for (const s of running) {
+    const name = s.shell || "shell";
+    counts[name] = (counts[name] || 0) + 1;
+  }
+  const plurals = { bash: "bashes", zsh: "zshs", fish: "fish", sh: "shells", shell: "shells" };
+  return Object.entries(counts)
+    .map(([shell, count]) => {
+      const label = count > 1 ? (plurals[shell] || shell + "s") : shell;
+      return `${count} ${label}`;
+    })
+    .join(", ");
+});
 const sidebarCollapsed = ref(false);
 const showCreateDialog = ref(false);
 const toastRef = ref(null);
@@ -83,7 +100,7 @@ function handleMobileOverlayClick() {
       </div>
 
       <div class="toolbar-right">
-        <!-- Add user menu or other actions here -->
+        <span v-if="shellSummary" class="shell-summary">{{ shellSummary }}</span>
       </div>
     </header>
 
@@ -171,6 +188,12 @@ function handleMobileOverlayClick() {
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: -0.5px;
+}
+
+.shell-summary {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  font-weight: 500;
 }
 
 .main-area {
