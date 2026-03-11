@@ -50,11 +50,31 @@ const TTYD_THEME = JSON.stringify({
   brightWhite: '#f9f5ed',
 });
 
+// Resolve the user's full login PATH so spawned terminals can find
+// user-installed tools (claude, cargo, etc.) even when the server
+// itself was launched with a minimal PATH (e.g. from Electron/launchd).
+function resolveLoginPath() {
+  const shells = [process.env.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh'].filter(Boolean);
+  for (const shell of shells) {
+    try {
+      const result = execSync(`${shell} -l -i -c 'echo $PATH'`, {
+        encoding: 'utf-8',
+        timeout: 5000,
+        stdio: ['ignore', 'pipe', 'ignore']
+      }).trim();
+      if (result) return result;
+    } catch {
+      // try next shell
+    }
+  }
+  return null;
+}
+
+const loginPath = resolveLoginPath();
+const basePath = loginPath || process.env.PATH || '';
 const SPAWN_ENV = {
   ...process.env,
-  // Ensure common binary paths are included even if running inside Electron
-  // (electron/main.js resolves the full login PATH before loading the server)
-  PATH: `/usr/local/bin:/opt/homebrew/bin:${process.env.PATH || ''}`
+  PATH: `/usr/local/bin:/opt/homebrew/bin:${basePath}`
 };
 // Prevent nested tmux when server itself runs inside tmux
 delete SPAWN_ENV.TMUX;
@@ -115,12 +135,14 @@ class SessionManager extends EventEmitter {
 
   spawnTtyd(name, port, shellPath) {
     const home = process.env.HOME || '/';
-    const tmuxArgs = ['tmux', 'new', '-A', '-s', name, '-c', home];
-    // Don't pass shell as a tmux command — instead set SHELL env var.
-    // tmux launches $SHELL as a login shell by default, which sources the
-    // user's profile (~/.bash_profile, ~/.zprofile) for full PATH.
+    const effectiveShell = shellPath || process.env.SHELL || '/bin/sh';
+    // Use non-login shell so the SPAWN_ENV PATH (resolved via resolveLoginPath())
+    // is preserved. Login shells trigger path_helper which resets PATH from scratch.
+    const tmuxArgs = ['tmux', 'new', '-A', '-s', name, '-c', home, effectiveShell];
     // Tell tmux to resize to the latest client (avoids stale column count)
     tmuxArgs.push(';', 'set-option', '-t', name, 'window-size', 'latest');
+    // Ensure new tmux windows also use non-login shell with inherited PATH
+    tmuxArgs.push(';', 'set-option', '-t', name, 'default-command', effectiveShell);
 
     const env = { ...SPAWN_ENV };
     if (shellPath) env.SHELL = shellPath;

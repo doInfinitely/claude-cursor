@@ -10,13 +10,15 @@ let mainWindow = null;
 let serverHandle = null;
 
 function resolveLoginPath() {
-  // Try each common shell as a login shell to get the user's real PATH.
+  // Try each common shell as a login interactive shell to get the user's real PATH.
   // Electron apps don't inherit the terminal's environment, so we must
   // source the user's profile to discover ~/.local/bin, ~/.cargo/bin, etc.
+  // The -i flag is critical: without it, .zshrc/.bashrc aren't sourced,
+  // so tools installed via nvm/npm (like claude) won't be on PATH.
   const shells = [process.env.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh'].filter(Boolean);
   for (const shell of shells) {
     try {
-      const result = execSync(`${shell} -l -c 'echo $PATH'`, {
+      const result = execSync(`${shell} -l -i -c 'echo $PATH'`, {
         encoding: 'utf-8',
         timeout: 5000,
         stdio: ['ignore', 'pipe', 'ignore']
