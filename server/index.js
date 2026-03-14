@@ -15,7 +15,9 @@ function createApp(portStart, portEnd) {
 
   app.use(express.json());
 
+  // Allow clipboard access in iframes (needed for paste in ttyd terminals)
   app.use((req, res, next) => {
+    res.setHeader('Permissions-Policy', 'clipboard-read=(self), clipboard-write=(self)');
     if (req.path.startsWith('/api')) {
       console.log(`[API] ${req.method} ${req.path}`);
     }
