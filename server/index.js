@@ -358,7 +358,8 @@ async function start(port, host) {
   const portStart = parseInt(process.env.TTYD_PORT_RANGE_START || '7681', 10);
   const portEnd = parseInt(process.env.TTYD_PORT_RANGE_END || '7780', 10);
 
-  const { server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval, ...appState } = createApp(portStart, portEnd);
+  const appResult = createApp(portStart, portEnd);
+  const { server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval } = appResult;
 
   return new Promise((resolve) => {
     server.listen(port, host, async () => {
@@ -375,7 +376,7 @@ async function start(port, host) {
 
       // Start tunnel (non-blocking — works without cloudflared)
       tunnel.start(addr.port).then((tunnelUrl) => {
-        if (tunnelUrl && !appState.userUrlOverride) {
+        if (tunnelUrl && !appResult.userUrlOverride) {
           notifier.setBaseUrl(tunnelUrl);
         }
       });
