@@ -7,18 +7,21 @@ import Footer from "@/components/Footer";
 
 type Platform = "macos" | "linux" | "unknown";
 
+const RELEASE_BASE =
+  "https://github.com/doInfinitely/claude-cursor/releases/download/v1.0.0";
+
 const INSTALLERS: Record<
   Exclude<Platform, "unknown">,
-  { label: string; file: string; note: string }
+  { label: string; url: string; note: string }
 > = {
   macos: {
     label: "Download for macOS",
-    file: "Claude Cursor-1.0.0-arm64.dmg",
+    url: `${RELEASE_BASE}/Claude.Cursor-1.0.0-arm64.dmg`,
     note: "macOS 12+ &middot; Apple Silicon",
   },
   linux: {
     label: "Download for Linux",
-    file: "claude-cursor_1.0.0_amd64.deb",
+    url: `${RELEASE_BASE}/claude-cursor_1.0.0_amd64.deb`,
     note: "Ubuntu/Debian &middot; x86_64 (zip also available)",
   },
 };
@@ -100,7 +103,7 @@ export default function DownloadPage() {
                 Recommended: $5 &middot; Enter $0 for free
               </p>
               <a
-                href={`/downloads/${INSTALLERS[primary].file}`}
+                href={INSTALLERS[primary].url}
                 className="inline-flex items-center gap-3 w-full justify-center px-8 py-3.5 text-sm font-semibold rounded-xl bg-[#dd5013] hover:bg-[#e87838] text-[#f8eed2] transition-colors"
               >
                 <svg
@@ -130,7 +133,7 @@ export default function DownloadPage() {
             {others.map((p) => (
               <a
                 key={p}
-                href={`/downloads/${INSTALLERS[p].file}`}
+                href={INSTALLERS[p].url}
                 className="flex items-center gap-2 px-5 py-2.5 text-sm rounded-lg border border-[#5d3d3a] hover:border-[#7a5955] text-[#c4b898] hover:text-[#f8eed2] transition-colors"
               >
                 <svg
