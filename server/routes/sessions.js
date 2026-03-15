@@ -1,5 +1,12 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const crypto = require('crypto');
+const { execFileSync } = require('child_process');
 const router = express.Router();
+
+const UPLOAD_DIR = path.join(os.tmpdir(), 'claude-cursor-uploads');
 
 module.exports = function (sessionManager, { notifier } = {}) {
   router.get('/shells', (req, res) => {
@@ -63,6 +70,36 @@ module.exports = function (sessionManager, { notifier } = {}) {
       res.json(session);
     } catch (err) {
       res.status(400).json({ error: err.message });
+    }
+  });
+
+  // File upload — saves file to temp dir and sends path to tmux session
+  router.post('/:name/upload', async (req, res) => {
+    try {
+      const { data, filename } = req.body;
+      if (!data) return res.status(400).json({ error: 'No data provided' });
+
+      const session = sessionManager.getSession(req.params.name);
+      if (session.status !== 'running') {
+        return res.status(400).json({ error: 'Session not running' });
+      }
+
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+      const ext = path.extname(filename || '.png');
+      const safeName = `upload-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
+      const filePath = path.join(UPLOAD_DIR, safeName);
+
+      const buffer = Buffer.from(data, 'base64');
+      fs.writeFileSync(filePath, buffer);
+
+      // Paste file path into the tmux session
+      execFileSync('tmux', ['send-keys', '-t', req.params.name, '-l', filePath], {
+        timeout: 5000,
+      });
+
+      res.json({ path: filePath });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 

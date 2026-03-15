@@ -68,7 +68,7 @@ function createApp(portStart, portEnd) {
   const app = express();
   const server = http.createServer(app);
 
-  app.use(express.json());
+  app.use(express.json({ limit: '20mb' }));
 
   app.use((req, res, next) => {
     if (req.path.startsWith('/api')) {
@@ -276,14 +276,14 @@ function createApp(portStart, portEnd) {
     return result;
   };
 
-  return { app, server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel };
+  return { app, server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, get userUrlOverride() { return userUrlOverride; } };
 }
 
 async function start(port, host) {
   const portStart = parseInt(process.env.TTYD_PORT_RANGE_START || '7681', 10);
   const portEnd = parseInt(process.env.TTYD_PORT_RANGE_END || '7780', 10);
 
-  const { server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel } = createApp(portStart, portEnd);
+  const { server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, ...appState } = createApp(portStart, portEnd);
 
   return new Promise((resolve) => {
     server.listen(port, host, async () => {
@@ -300,7 +300,7 @@ async function start(port, host) {
 
       // Start tunnel (non-blocking — works without cloudflared)
       tunnel.start(addr.port).then((tunnelUrl) => {
-        if (tunnelUrl && !userUrlOverride) {
+        if (tunnelUrl && !appState.userUrlOverride) {
           notifier.setBaseUrl(tunnelUrl);
         }
       });

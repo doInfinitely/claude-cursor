@@ -1,9 +1,12 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useSessionStore } from "../stores/sessions";
 
 const store = useSessionStore();
 const emit = defineEmits(["create"]);
+
+const isDragging = ref(false);
+const iframeRef = ref(null);
 
 const currentSession = computed(() => {
   return store.sessions.find((s) => s.name === store.current);
@@ -14,12 +17,99 @@ const iframeSrc = computed(() => {
     return null;
   return `/terminal/${currentSession.value.name}`;
 });
+
+// Drag-and-drop file upload
+// The iframe swallows drag events, so we synchronously disable its pointer-events
+// on the first dragenter, then use coordinate checks to detect when the drag
+// actually leaves the browser window.
+function setIframePointerEvents(value) {
+  if (iframeRef.value) iframeRef.value.style.pointerEvents = value;
+}
+
+function onWindowDragEnter(e) {
+  if (!e.dataTransfer?.types?.includes("Files") || !iframeSrc.value) return;
+  isDragging.value = true;
+  // Synchronous — takes effect before the browser routes the next drag event
+  setIframePointerEvents("none");
+}
+
+function onWindowDragLeave(e) {
+  // Only reset when the drag actually leaves the browser window.
+  // When moving between child elements, clientX/clientY stay within bounds.
+  const { clientX, clientY } = e;
+  if (
+    clientX <= 0 ||
+    clientY <= 0 ||
+    clientX >= window.innerWidth ||
+    clientY >= window.innerHeight
+  ) {
+    isDragging.value = false;
+    setIframePointerEvents("");
+  }
+}
+
+function onWindowDragOver(e) {
+  e.preventDefault();
+}
+
+function onWindowDrop(e) {
+  e.preventDefault();
+  isDragging.value = false;
+  setIframePointerEvents("");
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function onDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  isDragging.value = false;
+  setIframePointerEvents("");
+
+  const files = e.dataTransfer?.files;
+  if (!files?.length || !currentSession.value) return;
+
+  for (const file of files) {
+    const base64 = await readFileAsBase64(file);
+    try {
+      await fetch(`/api/sessions/${currentSession.value.name}/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: base64, filename: file.name }),
+      });
+    } catch (err) {
+      console.error("Upload error:", err);
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener("dragenter", onWindowDragEnter);
+  window.addEventListener("dragleave", onWindowDragLeave);
+  window.addEventListener("dragover", onWindowDragOver);
+  window.addEventListener("drop", onWindowDrop);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("dragenter", onWindowDragEnter);
+  window.removeEventListener("dragleave", onWindowDragLeave);
+  window.removeEventListener("dragover", onWindowDragOver);
+  window.removeEventListener("drop", onWindowDrop);
+});
 </script>
 
 <template>
   <div class="terminal-area">
     <iframe
       v-if="iframeSrc"
+      ref="iframeRef"
       :key="iframeSrc"
       :src="iframeSrc"
       class="terminal-frame"
@@ -44,6 +134,19 @@ const iframeSrc = computed(() => {
           </p>
           <p class="sub-text">Restart the session to continue.</p>
         </template>
+      </div>
+    </div>
+
+    <!-- Drop overlay -->
+    <div
+      v-show="isDragging"
+      class="drop-overlay"
+      @dragover.prevent
+      @dragleave.prevent="isDragging = false"
+      @drop.prevent="onDrop"
+    >
+      <div class="drop-content">
+        <div class="drop-text">Drop file to paste path into terminal</div>
       </div>
     </div>
   </div>
@@ -112,5 +215,33 @@ const iframeSrc = computed(() => {
 .sub-text {
   color: var(--text-tertiary);
   font-size: 14px;
+}
+
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 17, 12, 0.85);
+  border: 2px dashed var(--accent, #bdb7fc);
+  pointer-events: all;
+}
+
+.drop-content {
+  text-align: center;
+  pointer-events: none;
+}
+
+.drop-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.drop-text {
+  color: var(--text-primary, #f8eed2);
+  font-size: 16px;
+  font-weight: 500;
 }
 </style>
