@@ -25,6 +25,7 @@ const currentBaseUrl = ref("");
 const urlOverride = ref("");
 const urlSaving = ref(false);
 const urlCopied = ref(false);
+const dashboardCopied = ref(false);
 
 // Token inputs for connecting bots
 const discordToken = ref("");
@@ -177,6 +178,16 @@ async function copyUrl() {
     // fallback
   }
 }
+
+async function copyDashboardUrl() {
+  try {
+    await navigator.clipboard.writeText(tunnelUrl.value);
+    dashboardCopied.value = true;
+    setTimeout(() => dashboardCopied.value = false, 2000);
+  } catch {
+    // fallback
+  }
+}
 </script>
 
 <template>
@@ -307,6 +318,17 @@ async function copyUrl() {
             <button v-if="currentBaseUrl" class="btn-copy" @click="copyUrl">
               {{ urlCopied ? 'Copied' : 'Copy' }}
             </button>
+          </div>
+          <div v-if="tunnelActive" class="url-dashboard">
+            <span class="label-text">All Sessions</span>
+            <div class="url-current">
+              <span class="url-text" :title="tunnelUrl" @click="copyDashboardUrl">
+                {{ tunnelUrl }}
+              </span>
+              <button class="btn-copy" @click="copyDashboardUrl">
+                {{ dashboardCopied ? 'Copied' : 'Copy' }}
+              </button>
+            </div>
           </div>
           <span v-if="tunnelActive" class="input-hint">Cloudflare tunnel active</span>
           <span v-else class="input-hint">Local only — install cloudflared for a public URL</span>
@@ -525,6 +547,14 @@ input:focus {
   background: var(--bg-primary);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
+}
+
+.url-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
 }
 
 .url-current {
