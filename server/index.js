@@ -230,13 +230,17 @@ function createApp(portStart, portEnd) {
     res.json({ url: tunnel.getUrl(), active: !!tunnel.getUrl(), baseUrl: notifier.baseUrl });
   });
 
+  let userUrlOverride = !!process.env.BASE_URL;
+
   app.post('/api/tunnel/set-url', (req, res) => {
     const { url } = req.body;
     if (url) {
+      userUrlOverride = true;
       notifier.setBaseUrl(url);
       process.env.BASE_URL = url;
       persistEnvVar('BASE_URL', url);
     } else {
+      userUrlOverride = false;
       // Reset: prefer tunnel URL, then localhost
       const fallback = tunnel.getUrl() || '';
       notifier.setBaseUrl(fallback);
@@ -297,9 +301,8 @@ async function start(port, host) {
       notifier.start();
 
       // Start tunnel (non-blocking — works without cloudflared)
-      // Tunnel URL always takes priority since it changes every restart
       tunnel.start(addr.port).then((tunnelUrl) => {
-        if (tunnelUrl) {
+        if (tunnelUrl && !userUrlOverride) {
           notifier.setBaseUrl(tunnelUrl);
         }
       });
