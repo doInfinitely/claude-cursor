@@ -2,6 +2,7 @@ module.exports = {
   packagerConfig: {
     name: 'Claude Cursor',
     executableName: 'claude-cursor',
+    icon: './assets/icon',
     asar: true,
     ignore: [
       /^\/frontend\/src/,
@@ -25,6 +26,7 @@ module.exports = {
       name: '@electron-forge/maker-dmg',
       config: {
         format: 'ULFO',
+        icon: './assets/icon.icns',
       },
     },
     {
@@ -33,6 +35,7 @@ module.exports = {
         options: {
           maintainer: 'Claude Cursor',
           homepage: 'https://github.com/anthropics/claude-cursor',
+          icon: './assets/icon.png',
         },
       },
     },
