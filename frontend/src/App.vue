@@ -46,6 +46,8 @@ onMounted(() => {
   setTimeout(refreshTunnelStatus, 20000);
 });
 
+const tunnelMenuOpen = ref(false);
+
 async function copyTunnelUrl() {
   if (!tunnelUrl.value) return;
   try {
@@ -53,6 +55,14 @@ async function copyTunnelUrl() {
     tunnelCopied.value = true;
     setTimeout(() => tunnelCopied.value = false, 2000);
   } catch {}
+}
+
+async function resetTunnelUrl() {
+  try {
+    await store.setBaseUrl(null);
+    await refreshTunnelStatus();
+  } catch {}
+  tunnelMenuOpen.value = false;
 }
 
 // Mobile handling: Initially collapsed on mobile could be handled by media queries,
@@ -128,19 +138,30 @@ function handleMobileOverlayClick() {
 
       <div class="toolbar-right">
         <span v-if="shellSummary" class="shell-summary">{{ shellSummary }}</span>
-        <button
-          v-if="tunnelUrl"
-          class="tunnel-btn"
-          @click="copyTunnelUrl"
-          :title="tunnelUrl"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="2" y1="12" x2="22" y2="12"></line>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-          </svg>
-          <span class="tunnel-label">{{ tunnelCopied ? 'Copied!' : 'Public URL' }}</span>
-        </button>
+        <div v-if="tunnelUrl" class="tunnel-wrapper">
+          <button
+            class="tunnel-btn"
+            @click="copyTunnelUrl"
+            :title="tunnelUrl"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            <span class="tunnel-label">{{ tunnelCopied ? 'Copied!' : 'Public URL' }}</span>
+          </button>
+          <button class="tunnel-menu-btn" @click="tunnelMenuOpen = !tunnelMenuOpen" title="Options">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div v-if="tunnelMenuOpen" class="tunnel-dropdown">
+            <button @click="copyTunnelUrl(); tunnelMenuOpen = false">Copy URL</button>
+            <button @click="resetTunnelUrl">Reset URL</button>
+          </div>
+          <div v-if="tunnelMenuOpen" class="tunnel-backdrop" @click="tunnelMenuOpen = false"></div>
+        </div>
       </div>
     </header>
 
@@ -248,15 +269,22 @@ function handleMobileOverlayClick() {
   font-weight: 500;
 }
 
+.tunnel-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .tunnel-btn {
   display: flex;
   align-items: center;
   gap: 6px;
   background: none;
   border: 1px solid var(--border-color);
+  border-right: none;
   color: var(--text-secondary);
   padding: 4px 10px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   cursor: pointer;
   font-size: 12px;
 }
@@ -266,6 +294,61 @@ function handleMobileOverlayClick() {
 }
 .tunnel-btn svg {
   color: #16a34a;
+}
+
+.tunnel-menu-btn {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 4px 6px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  cursor: pointer;
+}
+.tunnel-menu-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.tunnel-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 50;
+  min-width: 120px;
+}
+.tunnel-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tunnel-dropdown button:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.tunnel-dropdown button:first-child {
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.tunnel-dropdown button:last-child {
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+.tunnel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
 }
 
 .main-area {
