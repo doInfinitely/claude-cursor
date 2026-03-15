@@ -22,6 +22,44 @@ function detectShells() {
       available.push({ id: shell.id, name: shell.name, path: found });
     }
   }
+
+  // Detect WSL distributions on Windows
+  if (process.platform === 'win32') {
+    try {
+      const output = execSync('wsl.exe -l -q', {
+        encoding: 'utf-16le',
+        timeout: 5000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      if (output) {
+        const distros = output.split('\n')
+          .map(line => line.trim().replace(/\0/g, ''))
+          .filter(Boolean);
+        for (const distro of distros) {
+          available.push({
+            id: `wsl-${distro.toLowerCase()}`,
+            name: `WSL (${distro})`,
+            path: 'wsl.exe',
+            args: ['-d', distro],
+          });
+        }
+      }
+    } catch {
+      // WSL not available
+    }
+
+    // Also add default WSL if any distros were found
+    try {
+      execSync('wsl.exe --status', { stdio: 'ignore', timeout: 3000 });
+      // Only add if we don't already have WSL entries (meaning detection worked)
+      if (!available.some(s => s.id.startsWith('wsl-'))) {
+        available.push({ id: 'wsl', name: 'WSL', path: 'wsl.exe', args: [] });
+      }
+    } catch {
+      // no default WSL
+    }
+  }
+
   return available;
 }
 
@@ -133,19 +171,28 @@ class SessionManager extends EventEmitter {
     }
   }
 
-  spawnTtyd(name, port, shellPath) {
-    const home = process.env.HOME || '/';
-    const effectiveShell = shellPath || process.env.SHELL || '/bin/sh';
+  spawnTtyd(name, port, shellSpec) {
+    const home = process.env.HOME || process.env.USERPROFILE || '/';
+
+    // shellSpec can be a string path, an object { path, args }, or null
+    let shellParts;
+    if (shellSpec && typeof shellSpec === 'object') {
+      shellParts = [shellSpec.path, ...shellSpec.args];
+    } else {
+      shellParts = [shellSpec || process.env.SHELL || '/bin/sh'];
+    }
+
+    const shellStr = shellParts.join(' ');
     // Use non-login shell so the SPAWN_ENV PATH (resolved via resolveLoginPath())
     // is preserved. Login shells trigger path_helper which resets PATH from scratch.
-    const tmuxArgs = ['tmux', 'new', '-A', '-s', name, '-c', home, effectiveShell];
+    const tmuxArgs = ['tmux', 'new', '-A', '-s', name, '-c', home, ...shellParts];
     // Tell tmux to resize to the latest client (avoids stale column count)
     tmuxArgs.push(';', 'set-option', '-t', name, 'window-size', 'latest');
     // Ensure new tmux windows also use non-login shell with inherited PATH
-    tmuxArgs.push(';', 'set-option', '-t', name, 'default-command', effectiveShell);
+    tmuxArgs.push(';', 'set-option', '-t', name, 'default-command', shellStr);
 
     const env = { ...SPAWN_ENV };
-    if (shellPath) env.SHELL = shellPath;
+    if (shellSpec) env.SHELL = typeof shellSpec === 'string' ? shellSpec : shellSpec.path;
 
     return spawn('ttyd', [
       '-W', '-p', String(port),
@@ -233,6 +280,9 @@ class SessionManager extends EventEmitter {
     if (!shellId) return null;
     const shell = this.shells.find(s => s.id === shellId);
     if (!shell) throw new Error(`Shell "${shellId}" is not available`);
+    if (shell.args && shell.args.length) {
+      return { path: shell.path, args: shell.args };
+    }
     return shell.path;
   }
 
