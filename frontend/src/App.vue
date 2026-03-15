@@ -1,5 +1,5 @@
 <script setup>
-import { ref, provide, computed } from "vue";
+import { ref, provide, computed, onMounted } from "vue";
 import Sidebar from "./components/Sidebar.vue";
 import TerminalView from "./components/TerminalView.vue";
 import CreateDialog from "./components/CreateDialog.vue";
@@ -29,6 +29,31 @@ const sidebarCollapsed = ref(false);
 const showCreateDialog = ref(false);
 const notifyConfigSession = ref(null);
 const toastRef = ref(null);
+
+const tunnelUrl = ref(null);
+const tunnelCopied = ref(false);
+
+async function refreshTunnelStatus() {
+  try {
+    const status = await store.fetchTunnelStatus();
+    tunnelUrl.value = status.url || null;
+  } catch {}
+}
+
+onMounted(() => {
+  refreshTunnelStatus();
+  // Retry after 20s in case tunnel hasn't connected yet on startup
+  setTimeout(refreshTunnelStatus, 20000);
+});
+
+async function copyTunnelUrl() {
+  if (!tunnelUrl.value) return;
+  try {
+    await navigator.clipboard.writeText(tunnelUrl.value);
+    tunnelCopied.value = true;
+    setTimeout(() => tunnelCopied.value = false, 2000);
+  } catch {}
+}
 
 // Mobile handling: Initially collapsed on mobile could be handled by media queries,
 // but for state consistency, we might want to default to closed on small screens if we had window size detection.
@@ -103,6 +128,19 @@ function handleMobileOverlayClick() {
 
       <div class="toolbar-right">
         <span v-if="shellSummary" class="shell-summary">{{ shellSummary }}</span>
+        <button
+          v-if="tunnelUrl"
+          class="tunnel-btn"
+          @click="copyTunnelUrl"
+          :title="tunnelUrl"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          <span class="tunnel-label">{{ tunnelCopied ? 'Copied!' : 'Public URL' }}</span>
+        </button>
       </div>
     </header>
 
@@ -198,10 +236,36 @@ function handleMobileOverlayClick() {
   letter-spacing: -0.5px;
 }
 
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .shell-summary {
   font-size: 13px;
   color: var(--text-tertiary);
   font-weight: 500;
+}
+
+.tunnel-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+}
+.tunnel-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.tunnel-btn svg {
+  color: #16a34a;
 }
 
 .main-area {
