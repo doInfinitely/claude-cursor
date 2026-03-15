@@ -2,7 +2,9 @@ module.exports = {
   packagerConfig: {
     name: 'Claude Cursor',
     executableName: 'claude-cursor',
-    asar: true,
+    asar: {
+      unpackDir: 'vendor',
+    },
     ignore: [
       /^\/frontend\/src/,
       /^\/frontend\/node_modules/,

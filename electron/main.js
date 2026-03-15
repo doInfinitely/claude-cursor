@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog } = require('electron');
 const { execSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 // Load .env from project root (works in dev mode).
 // In packaged mode, we load from userData in the ready handler.
@@ -9,16 +10,34 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 let mainWindow = null;
 let serverHandle = null;
 
+const IS_WIN = process.platform === 'win32';
+
+// Resolve the vendor directory containing bundled binaries (ttyd, tmux, msys2).
+// In packaged mode the vendor dir lives inside the asar-unpacked resources;
+// in dev mode it's at the project root.
+function resolveVendorDir() {
+  if (IS_WIN) {
+    // Packaged: resources/app.asar.unpacked/vendor/win32
+    const packed = path.join(process.resourcesPath, 'app.asar.unpacked', 'vendor', 'win32');
+    if (fs.existsSync(packed)) return packed;
+    // Dev mode
+    const dev = path.join(__dirname, '..', 'vendor', 'win32');
+    if (fs.existsSync(dev)) return dev;
+  }
+  return null;
+}
+
+const VENDOR_DIR = resolveVendorDir();
+
 function resolveLoginPath() {
-  if (process.platform === 'win32') {
-    // On Windows, PATH is already available from the system environment
-    return process.env.PATH || '';
+  if (IS_WIN) {
+    // On Windows, prepend bundled vendor binaries to PATH
+    const vendorBin = VENDOR_DIR ? path.join(VENDOR_DIR, 'msys2', 'usr', 'bin') : '';
+    const ttydDir = VENDOR_DIR || '';
+    const parts = [vendorBin, ttydDir, process.env.PATH || ''].filter(Boolean);
+    return parts.join(';');
   }
   // Try each common shell as a login interactive shell to get the user's real PATH.
-  // Electron apps don't inherit the terminal's environment, so we must
-  // source the user's profile to discover ~/.local/bin, ~/.cargo/bin, etc.
-  // The -i flag is critical: without it, .zshrc/.bashrc aren't sourced,
-  // so tools installed via nvm/npm (like claude) won't be on PATH.
   const shells = [process.env.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh'].filter(Boolean);
   for (const shell of shells) {
     try {
@@ -40,9 +59,14 @@ function resolveLoginPath() {
 const LOGIN_PATH = resolveLoginPath();
 process.env.PATH = LOGIN_PATH;
 
+// Expose vendor dir to the server-side code
+if (VENDOR_DIR) {
+  process.env.CLAUDE_CURSOR_VENDOR_DIR = VENDOR_DIR;
+}
+
 function checkDependency(name) {
-  const cmd = process.platform === 'win32' ? `where ${name}` : `which ${name}`;
   try {
+    const cmd = IS_WIN ? `where ${name}` : `which ${name}`;
     execSync(cmd, { stdio: 'ignore', env: { ...process.env, PATH: LOGIN_PATH } });
     return true;
   } catch {
@@ -61,9 +85,12 @@ function checkDependencies() {
   }
 
   if (missing.length > 0) {
+    const installHint = IS_WIN
+      ? 'These should be bundled with the app. Please re-download or reinstall.'
+      : `macOS: brew install ${missing.join(' ')}\nLinux: apt install ${missing.join(' ')}`;
     dialog.showErrorBox(
       'Missing Dependencies',
-      `The following required programs are not installed:\n\n${missing.join(', ')}\n\nPlease install them and try again.\n\nmacOS: brew install ${missing.join(' ')}\nLinux: apt install ${missing.join(' ')}\nWindows: Install via WSL (wsl --install) then: sudo apt install ${missing.join(' ')}`
+      `The following required programs are not installed:\n\n${missing.join(', ')}\n\nPlease install them and try again.\n\n${installHint}`
     );
     app.quit();
     return false;
@@ -148,8 +175,14 @@ app.on('before-quit', () => {
     serverHandle.server.closeAllConnections();
     serverHandle.server.close();
     serverHandle = null;
-    for (const pid of pids) {
-      try { process.kill(pid, 'SIGKILL'); } catch { /* already dead */ }
+    if (pids.length > 0) {
+      if (IS_WIN) {
+        for (const pid of pids) {
+          try { process.kill(pid, 'SIGKILL'); } catch (_) {}
+        }
+      } else {
+        execSync(`kill -9 ${pids.join(' ')}`, { stdio: 'ignore' });
+      }
     }
   } catch (e) {
     // ignore cleanup errors
