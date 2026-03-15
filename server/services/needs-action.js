@@ -3,7 +3,7 @@ const crypto = require('crypto');
 
 const SPAWN_ENV = {
   ...process.env,
-  PATH: `/usr/local/bin:/opt/homebrew/bin:${process.env.PATH || ''}`
+  PATH: process.platform === 'win32' ? (process.env.PATH || '') : `/usr/local/bin:/opt/homebrew/bin:${process.env.PATH || ''}`
 };
 delete SPAWN_ENV.TMUX;
 delete SPAWN_ENV.TMUX_PANE;

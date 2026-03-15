@@ -10,6 +10,10 @@ let mainWindow = null;
 let serverHandle = null;
 
 function resolveLoginPath() {
+  if (process.platform === 'win32') {
+    // On Windows, PATH is already available from the system environment
+    return process.env.PATH || '';
+  }
   // Try each common shell as a login interactive shell to get the user's real PATH.
   // Electron apps don't inherit the terminal's environment, so we must
   // source the user's profile to discover ~/.local/bin, ~/.cargo/bin, etc.
@@ -37,8 +41,9 @@ const LOGIN_PATH = resolveLoginPath();
 process.env.PATH = LOGIN_PATH;
 
 function checkDependency(name) {
+  const cmd = process.platform === 'win32' ? `where ${name}` : `which ${name}`;
   try {
-    execSync(`which ${name}`, { stdio: 'ignore', env: { ...process.env, PATH: LOGIN_PATH } });
+    execSync(cmd, { stdio: 'ignore', env: { ...process.env, PATH: LOGIN_PATH } });
     return true;
   } catch {
     return false;
@@ -58,7 +63,7 @@ function checkDependencies() {
   if (missing.length > 0) {
     dialog.showErrorBox(
       'Missing Dependencies',
-      `The following required programs are not installed:\n\n${missing.join(', ')}\n\nPlease install them and try again.\n\nmacOS: brew install ${missing.join(' ')}\nLinux: apt install ${missing.join(' ')}`
+      `The following required programs are not installed:\n\n${missing.join(', ')}\n\nPlease install them and try again.\n\nmacOS: brew install ${missing.join(' ')}\nLinux: apt install ${missing.join(' ')}\nWindows: Install via WSL (wsl --install) then: sudo apt install ${missing.join(' ')}`
     );
     app.quit();
     return false;
@@ -143,8 +148,8 @@ app.on('before-quit', () => {
     serverHandle.server.closeAllConnections();
     serverHandle.server.close();
     serverHandle = null;
-    if (pids.length > 0) {
-      execSync(`kill -9 ${pids.join(' ')}`, { stdio: 'ignore' });
+    for (const pid of pids) {
+      try { process.kill(pid, 'SIGKILL'); } catch { /* already dead */ }
     }
   } catch (e) {
     // ignore cleanup errors

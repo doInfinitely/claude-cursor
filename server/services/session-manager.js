@@ -92,6 +92,7 @@ const TTYD_THEME = JSON.stringify({
 // user-installed tools (claude, cargo, etc.) even when the server
 // itself was launched with a minimal PATH (e.g. from Electron/launchd).
 function resolveLoginPath() {
+  if (process.platform === 'win32') return process.env.PATH || '';
   const shells = [process.env.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh'].filter(Boolean);
   for (const shell of shells) {
     try {
@@ -112,7 +113,7 @@ const loginPath = resolveLoginPath();
 const basePath = loginPath || process.env.PATH || '';
 const SPAWN_ENV = {
   ...process.env,
-  PATH: `/usr/local/bin:/opt/homebrew/bin:${basePath}`
+  PATH: process.platform === 'win32' ? basePath : `/usr/local/bin:/opt/homebrew/bin:${basePath}`
 };
 // Prevent nested tmux when server itself runs inside tmux
 delete SPAWN_ENV.TMUX;
