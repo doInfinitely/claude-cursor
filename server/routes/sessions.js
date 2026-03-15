@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-module.exports = function (sessionManager) {
+module.exports = function (sessionManager, { notifier } = {}) {
   router.get('/shells', (req, res) => {
     res.json({ shells: sessionManager.getShells() });
   });
@@ -42,6 +42,34 @@ module.exports = function (sessionManager) {
     try {
       const result = await sessionManager.remove(req.params.name);
       res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Notification routing
+  router.put('/:name/notify', (req, res) => {
+    try {
+      const { provider, target, targetName } = req.body;
+      if (!provider || !target) {
+        return res.status(400).json({ error: 'provider and target are required' });
+      }
+      if (!['discord', 'slack'].includes(provider)) {
+        return res.status(400).json({ error: 'provider must be "discord" or "slack"' });
+      }
+      const session = sessionManager.updateNotifyConfig(req.params.name, {
+        provider, target, targetName
+      });
+      res.json(session);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.delete('/:name/notify', (req, res) => {
+    try {
+      const session = sessionManager.updateNotifyConfig(req.params.name, null);
+      res.json(session);
     } catch (err) {
       res.status(400).json({ error: err.message });
     }

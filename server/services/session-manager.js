@@ -175,10 +175,12 @@ class SessionManager extends EventEmitter {
       status: 'running',
       createdAt: new Date().toISOString(),
       needsAction: false,
+      actionType: null,
       needsActionAt: null,
       needsActionSnippet: null,
       confidence: null,
       description: null,
+      notifyConfig: null,
       process: proc
     };
 
@@ -188,6 +190,7 @@ class SessionManager extends EventEmitter {
         session.pid = null;
         session.process = null;
         session.needsAction = false;
+        session.actionType = null;
         session.needsActionAt = null;
         session.needsActionSnippet = null;
         session.confidence = null;
@@ -266,6 +269,7 @@ class SessionManager extends EventEmitter {
       needsActionSnippet: null,
       confidence: null,
       description: null,
+      notifyConfig: null,
       process: proc
     };
 
@@ -376,12 +380,14 @@ class SessionManager extends EventEmitter {
     return this.serialize(session);
   }
 
-  updateNeedsAction(name, { needsAction, confidence, snippet }) {
+  updateNeedsAction(name, { needsAction, confidence, snippet, actionType }) {
     const session = this.sessions.get(name);
     if (!session || session.status !== 'running') return;
 
-    const changed = session.needsAction !== needsAction;
+    const changed = session.needsAction !== needsAction
+      || session.actionType !== (actionType || null);
     session.needsAction = needsAction;
+    session.actionType = actionType || null;
     session.confidence = confidence;
     session.needsActionSnippet = snippet || null;
     session.needsActionAt = needsAction ? new Date().toISOString() : null;
@@ -399,6 +405,23 @@ class SessionManager extends EventEmitter {
       session.description = description;
       this.emit('session:updated', this.serialize(session));
     }
+  }
+
+  updateNotifyConfig(name, config) {
+    const session = this.sessions.get(name);
+    if (!session) throw new Error(`Session "${name}" not found`);
+
+    if (config) {
+      session.notifyConfig = {
+        provider: config.provider || null,
+        target: config.target || null,
+        targetName: config.targetName || null,
+      };
+    } else {
+      session.notifyConfig = null;
+    }
+    this.emit('session:updated', this.serialize(session));
+    return this.serialize(session);
   }
 
   getSession(name) {

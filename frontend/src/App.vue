@@ -3,6 +3,7 @@ import { ref, provide, computed } from "vue";
 import Sidebar from "./components/Sidebar.vue";
 import TerminalView from "./components/TerminalView.vue";
 import CreateDialog from "./components/CreateDialog.vue";
+import NotifyConfigDialog from "./components/NotifyConfigDialog.vue";
 import Toast from "./components/Toast.vue";
 import { useSessionStore } from "./stores/sessions";
 
@@ -26,6 +27,7 @@ const shellSummary = computed(() => {
 });
 const sidebarCollapsed = ref(false);
 const showCreateDialog = ref(false);
+const notifyConfigSession = ref(null);
 const toastRef = ref(null);
 
 // Mobile handling: Initially collapsed on mobile could be handled by media queries,
@@ -115,12 +117,18 @@ function handleMobileOverlayClick() {
       <Sidebar
         :collapsed="sidebarCollapsed"
         @create="showCreateDialog = true"
+        @configure-notify="(name) => notifyConfigSession = name"
       />
 
       <TerminalView @create="showCreateDialog = true" />
     </div>
 
     <CreateDialog v-if="showCreateDialog" @close="showCreateDialog = false" />
+    <NotifyConfigDialog
+      v-if="notifyConfigSession"
+      :session-name="notifyConfigSession"
+      @close="notifyConfigSession = null"
+    />
     <Toast ref="toastRef" />
   </div>
 </template>
