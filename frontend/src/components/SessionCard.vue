@@ -2,12 +2,13 @@
 import { ref } from "vue";
 import { useSessionStore } from "../stores/sessions";
 
-defineProps({
+const props = defineProps({
   session: Object,
   active: Boolean,
   collapsed: Boolean,
 });
 
+const emit = defineEmits(["configure-notify"]);
 const store = useSessionStore();
 const confirming = ref(false);
 
@@ -30,6 +31,11 @@ function cancelRemove(e) {
   e.stopPropagation();
   confirming.value = false;
 }
+
+function onNotifyClick(e) {
+  e.stopPropagation();
+  emit("configure-notify", props.session.name);
+}
 </script>
 
 <template>
@@ -38,11 +44,23 @@ function cancelRemove(e) {
     :class="{ active, collapsed }"
     :title="session.name"
   >
-    <div class="status-indicator" :class="[session.status, { 'needs-action': session.needsAction }]"></div>
+    <div class="status-indicator" :class="[session.status, session.needsAction && `action-${session.actionType || 'prompt'}`]"></div>
 
     <div class="card-content" v-show="!collapsed">
       <div class="card-top">
         <div class="session-name">{{ session.name }}</div>
+        <button
+          v-if="!confirming"
+          class="notify-btn"
+          :class="{ active: session.notifyConfig }"
+          :title="session.notifyConfig ? `Notifying ${session.notifyConfig.targetName || session.notifyConfig.provider}` : 'Configure notifications'"
+          @click="onNotifyClick($event)"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        </button>
         <button
           v-if="!confirming"
           class="close-btn"
@@ -66,7 +84,7 @@ function cancelRemove(e) {
         <span class="pid">PID: {{ session.pid }}</span>
         <span class="status-text">{{ session.status }}</span>
       </div>
-      <div v-if="session.needsAction && session.needsActionSnippet" class="action-snippet">
+      <div v-if="session.needsAction && session.needsActionSnippet" class="action-snippet" :class="`action-${session.actionType || 'prompt'}`">
         {{ session.needsActionSnippet }}
       </div>
     </div>
@@ -110,10 +128,33 @@ function cancelRemove(e) {
   box-shadow: 0 0 8px rgba(233, 228, 166, 0.4);
 }
 
-.status-indicator.needs-action {
+/* Approval — red, urgent pulse */
+.status-indicator.action-approval {
+  background: #dc2626;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
+  animation: pulse-red 1.5s ease-in-out infinite;
+}
+
+/* Completed — green, calm */
+.status-indicator.action-completed {
+  background: #16a34a;
+  box-shadow: 0 0 8px rgba(22, 163, 74, 0.5);
+}
+
+/* Generic prompt — amber */
+.status-indicator.action-prompt {
   background: #d97706;
   box-shadow: 0 0 8px rgba(217, 119, 6, 0.6);
   animation: pulse-amber 2s ease-in-out infinite;
+}
+
+@keyframes pulse-red {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(220, 38, 38, 0.9);
+  }
 }
 
 @keyframes pulse-amber {
@@ -149,6 +190,7 @@ function cancelRemove(e) {
   min-width: 0;
 }
 
+.notify-btn,
 .close-btn {
   display: none;
   align-items: center;
@@ -161,8 +203,17 @@ function cancelRemove(e) {
   border-radius: 4px;
   flex-shrink: 0;
 }
+.session-card:hover .notify-btn,
 .session-card:hover .close-btn {
   display: flex;
+}
+.notify-btn.active {
+  display: flex;
+  color: #d97706;
+}
+.notify-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent-primary);
 }
 .close-btn:hover {
   background: var(--bg-tertiary);
@@ -226,6 +277,12 @@ function cancelRemove(e) {
   text-overflow: ellipsis;
   margin-top: 2px;
   opacity: 0.9;
+}
+.action-snippet.action-approval {
+  color: #dc2626;
+}
+.action-snippet.action-completed {
+  color: #16a34a;
 }
 
 /* Collapsed state centering */

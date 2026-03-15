@@ -8,7 +8,22 @@ const SPAWN_ENV = {
 delete SPAWN_ENV.TMUX;
 delete SPAWN_ENV.TMUX_PANE;
 
-// Regex patterns that suggest a session is waiting for human input
+// High-priority: Claude Code tool approval prompts
+const APPROVAL_PATTERNS = [
+  /This command requires approval/i,
+  /requires? (?:your )?approval/i,
+  /Allow (?:this )?(?:tool|command|action)/i,
+  /Do you want to proceed/i,
+];
+
+// Completion: Claude Code finished working
+const COMPLETED_PATTERNS = [
+  /Churned for \d+/i,
+  /Total cost:.*\$/i,
+  /session (?:completed|finished|done)/i,
+];
+
+// Generic prompts that suggest a session is waiting for human input
 const PROMPT_PATTERNS = [
   // Generic prompts ending with ?
   /\?\s*$/m,
@@ -21,8 +36,6 @@ const PROMPT_PATTERNS = [
   /press any key/i,
   /hit enter/i,
   // Claude Code specific patterns
-  /Do you want to proceed/i,
-  /Allow this action/i,
   /approve|deny|reject/i,
   // Common CLI prompts
   /\[Y\/n\]/,
@@ -127,37 +140,55 @@ class NeedsActionService {
         `tmux capture-pane -t ${name} -b _nacheck -S -${this.captureLines} && tmux show-buffer -b _nacheck && tmux delete-buffer -b _nacheck`,
         { encoding: 'utf-8', timeout: 3000, env: SPAWN_ENV }
       );
-      return output;
+      // Strip ANSI escape sequences so regex patterns match clean text
+      return output.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\].*?\x07/g, '');
     } catch {
       return null;
     }
   }
 
   classifyWithRegex(snapshot) {
-    // Look at the last portion of the snapshot (last ~20 lines) for prompt patterns
+    // Look at the last portion of the snapshot for prompt patterns
+    // Use last 80 lines — Claude Code approval prompts can be long
     const lines = snapshot.split('\n');
-    const tail = lines.slice(-20).join('\n');
+    const tail = lines.slice(-80).join('\n');
 
-    for (const pattern of PROMPT_PATTERNS) {
-      if (pattern.test(tail)) {
-        // Extract the matching line as snippet
-        const tailLines = tail.split('\n');
-        let snippet = '';
-        for (let i = tailLines.length - 1; i >= 0; i--) {
-          if (tailLines[i].trim()) {
-            snippet = tailLines[i].trim();
-            break;
-          }
+    if (process.env.DEBUG_NEEDS_ACTION) {
+      console.log('[NeedsAction] Tail (last 20 lines):\n---\n' + tail + '\n---');
+    }
+
+    // Check tiered patterns in priority order
+    const tiers = [
+      { patterns: APPROVAL_PATTERNS, actionType: 'approval', confidence: 0.95 },
+      { patterns: COMPLETED_PATTERNS, actionType: 'completed', confidence: 0.9 },
+      { patterns: PROMPT_PATTERNS, actionType: 'prompt', confidence: 0.6 },
+    ];
+
+    for (const tier of tiers) {
+      for (const pattern of tier.patterns) {
+        if (pattern.test(tail)) {
+          const snippet = this._extractSnippet(tail);
+          return {
+            needsAction: true,
+            actionType: tier.actionType,
+            confidence: tier.confidence,
+            snippet: snippet.slice(0, 120)
+          };
         }
-        return {
-          needsAction: true,
-          confidence: 0.6,
-          snippet: snippet.slice(0, 120)
-        };
       }
     }
 
-    return { needsAction: false, confidence: 0.9, snippet: null };
+    return { needsAction: false, actionType: null, confidence: 0.9, snippet: null };
+  }
+
+  _extractSnippet(tail) {
+    const tailLines = tail.split('\n');
+    for (let i = tailLines.length - 1; i >= 0; i--) {
+      if (tailLines[i].trim()) {
+        return tailLines[i].trim();
+      }
+    }
+    return '';
   }
 
   async classifyWithLLM(snapshot) {
@@ -176,7 +207,13 @@ class NeedsActionService {
         messages: [
           {
             role: 'user',
-            content: `You are analyzing a terminal session snapshot. Determine if the terminal is currently waiting for human input (e.g., a confirmation prompt, a question, password entry, approval request, or any interactive prompt that blocks until the user types something).
+            content: `You are analyzing a terminal session snapshot. Determine if the terminal is currently waiting for human input OR if a task has just completed.
+
+Classify into one of these actionType categories:
+- "approval": A tool or command requires explicit approval (e.g. "This command requires approval", "Allow this action")
+- "completed": A long-running task just finished (e.g. "Churned for 6m 55s", "Total cost: $0.12", a cost/time summary line)
+- "prompt": Any other interactive prompt waiting for input (questions, y/n, password, etc.)
+- null: No action needed — the terminal is running normally or idle
 
 Terminal snapshot (last lines):
 \`\`\`
@@ -184,7 +221,7 @@ ${tail}
 \`\`\`
 
 Respond with ONLY a JSON object (no markdown, no explanation):
-{"needsAction": true/false, "confidence": 0.0-1.0, "snippet": "the prompt line or null"}`
+{"needsAction": true/false, "actionType": "approval"|"completed"|"prompt"|null, "confidence": 0.0-1.0, "snippet": "the prompt line or null"}`
           }
         ]
       });
@@ -193,8 +230,10 @@ Respond with ONLY a JSON object (no markdown, no explanation):
       // Strip markdown code fences if present
       text = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/g, '').trim();
       const parsed = JSON.parse(text);
+      const validTypes = ['approval', 'completed', 'prompt'];
       return {
         needsAction: Boolean(parsed.needsAction),
+        actionType: validTypes.includes(parsed.actionType) ? parsed.actionType : (parsed.needsAction ? 'prompt' : null),
         confidence: Math.min(1, Math.max(0, Number(parsed.confidence) || 0.5)),
         snippet: parsed.snippet ? String(parsed.snippet).slice(0, 120) : null
       };

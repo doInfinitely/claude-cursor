@@ -50,6 +50,11 @@ function checkDependencies() {
   if (!checkDependency('ttyd')) missing.push('ttyd');
   if (!checkDependency('tmux')) missing.push('tmux');
 
+  // Soft-check optional dependencies
+  if (!checkDependency('cloudflared')) {
+    console.warn('[Dependencies] cloudflared not found — tunnel features disabled. Install with: brew install cloudflared');
+  }
+
   if (missing.length > 0) {
     dialog.showErrorBox(
       'Missing Dependencies',
@@ -79,6 +84,22 @@ function createWindow(port) {
       nodeIntegration: false,
     },
   });
+
+  // Forward server console logs to renderer dev tools
+  const origLog = console.log;
+  const origWarn = console.warn;
+  const origError = console.error;
+  function forward(level, args) {
+    if (mainWindow && mainWindow.webContents) {
+      const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+      mainWindow.webContents.executeJavaScript(
+        `console.${level}('[server]', ${JSON.stringify(msg)})`
+      ).catch(() => {});
+    }
+  }
+  console.log = (...args) => { origLog(...args); forward('log', args); };
+  console.warn = (...args) => { origWarn(...args); forward('warn', args); };
+  console.error = (...args) => { origError(...args); forward('error', args); };
 
   mainWindow.loadURL(`http://127.0.0.1:${port}`);
 
@@ -115,6 +136,7 @@ app.on('before-quit', () => {
   app.isQuitting = true;
   if (!serverHandle) return;
   try {
+    if (serverHandle.tunnel) serverHandle.tunnel.stop();
     serverHandle.needsActionService.stop();
     serverHandle.descriptionService.stop();
     const pids = serverHandle.sessionManager.getRunningPids();

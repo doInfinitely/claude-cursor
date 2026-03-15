@@ -8,14 +8,22 @@ defineProps({
   mobile: Boolean,
 });
 
-const emit = defineEmits(["create"]);
+const emit = defineEmits(["create", "configure-notify"]);
 const store = useSessionStore();
+
+const ACTION_PRIORITY = { approval: 0, completed: 1, prompt: 2 };
+
+function actionRank(session) {
+  if (!session.needsAction) return 10;
+  return ACTION_PRIORITY[session.actionType] ?? 3;
+}
 
 const sortedSessions = computed(() => {
   return [...store.sessions].sort((a, b) => {
-    // needsAction first
-    if (a.needsAction && !b.needsAction) return -1;
-    if (!a.needsAction && b.needsAction) return 1;
+    // Sort by action priority (approval > completed > prompt > none)
+    const ra = actionRank(a);
+    const rb = actionRank(b);
+    if (ra !== rb) return ra - rb;
     // then running before stopped
     if (a.status === "running" && b.status !== "running") return -1;
     if (a.status !== "running" && b.status === "running") return 1;
@@ -23,8 +31,16 @@ const sortedSessions = computed(() => {
   });
 });
 
+const runningCount = computed(() =>
+  store.sessions.filter((s) => s.status === "running").length
+);
+
 const needsActionCount = computed(() =>
   store.sessions.filter((s) => s.needsAction).length
+);
+
+const approvalCount = computed(() =>
+  store.sessions.filter((s) => s.needsAction && s.actionType === "approval").length
 );
 </script>
 
@@ -33,7 +49,7 @@ const needsActionCount = computed(() =>
     <div class="sidebar-header">
       <h2 class="sidebar-title" v-show="!collapsed">
         Sessions
-        <span v-if="needsActionCount" class="action-badge">{{ needsActionCount }}</span>
+        <span v-if="needsActionCount" class="action-badge" :class="{ urgent: approvalCount }">{{ needsActionCount }}</span>
       </h2>
       <button
         class="icon-btn new-session-btn"
@@ -66,6 +82,7 @@ const needsActionCount = computed(() =>
         :active="store.current === s.name"
         :collapsed="collapsed"
         @click="store.select(s.name)"
+        @configure-notify="(name) => emit('configure-notify', name)"
       />
 
       <div v-if="!store.sessions.length" class="empty-hint" v-show="!collapsed">
@@ -127,6 +144,9 @@ const needsActionCount = computed(() =>
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
+}
+.action-badge.urgent {
+  background: #dc2626;
 }
 
 .new-session-btn {

@@ -106,6 +106,54 @@ export const useSessionStore = defineStore('sessions', () => {
     return createSession(name || null, command || null)
   }
 
+  async function fetchNotifyTargets() {
+    const res = await fetch('/api/notifications/targets')
+    const data = await res.json()
+    return data.targets || { discord: [], slack: [] }
+  }
+
+  async function fetchNotifyStatus() {
+    const res = await fetch('/api/notifications/status')
+    const data = await res.json()
+    return data || { discord: {}, slack: {} }
+  }
+
+  async function updateNotifyConfig(name, config) {
+    const res = await fetch(`/api/sessions/${name}/notify`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.error)
+    }
+    await fetchSessions()
+  }
+
+  async function fetchTunnelStatus() {
+    const res = await fetch('/api/tunnel/status')
+    return await res.json()
+  }
+
+  async function setBaseUrl(url) {
+    const res = await fetch('/api/tunnel/set-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url || null })
+    })
+    return await res.json()
+  }
+
+  async function removeNotifyConfig(name) {
+    const res = await fetch(`/api/sessions/${name}/notify`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.error)
+    }
+    await fetchSessions()
+  }
+
   return {
     sessions,
     shells,
@@ -117,6 +165,12 @@ export const useSessionStore = defineStore('sessions', () => {
     stopSession,
     restartSession,
     removeSession,
-    select
+    select,
+    fetchNotifyTargets,
+    fetchNotifyStatus,
+    updateNotifyConfig,
+    removeNotifyConfig,
+    fetchTunnelStatus,
+    setBaseUrl
   }
 })
