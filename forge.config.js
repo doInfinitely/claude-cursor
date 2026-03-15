@@ -4,6 +4,14 @@ module.exports = {
     executableName: 'claude-cursor',
     icon: './assets/icon',
     asar: true,
+    ...(process.env.APPLE_ID ? {
+      osxSign: {},
+      osxNotarize: {
+        appleId: process.env.APPLE_ID,
+        appleIdPassword: process.env.APPLE_ID_PASSWORD,
+        teamId: process.env.APPLE_TEAM_ID,
+      },
+    } : {}),
     ignore: [
       /^\/frontend\/src/,
       /^\/frontend\/node_modules/,

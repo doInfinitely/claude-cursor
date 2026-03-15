@@ -11,6 +11,40 @@ const props = defineProps({
 const emit = defineEmits(["configure-notify"]);
 const store = useSessionStore();
 const confirming = ref(false);
+const urlMenuOpen = ref(false);
+const urlCopied = ref(false);
+
+async function onUrlClick(e) {
+  e.stopPropagation();
+  urlMenuOpen.value = !urlMenuOpen.value;
+}
+
+async function copySessionUrl(e) {
+  e.stopPropagation();
+  try {
+    const status = await store.fetchTunnelStatus();
+    const base = status.baseUrl || status.url;
+    if (!base) return;
+    const url = `${base}/terminal/${encodeURIComponent(props.session.name)}`;
+    await navigator.clipboard.writeText(url);
+    urlCopied.value = true;
+    setTimeout(() => (urlCopied.value = false), 2000);
+  } catch {}
+  urlMenuOpen.value = false;
+}
+
+async function resetSessionUrl(e) {
+  e.stopPropagation();
+  try {
+    await store.setBaseUrl(null);
+  } catch {}
+  urlMenuOpen.value = false;
+}
+
+function closeUrlMenu(e) {
+  e.stopPropagation();
+  urlMenuOpen.value = false;
+}
 
 function onClose(e, name) {
   e.stopPropagation();
@@ -49,6 +83,28 @@ function onNotifyClick(e) {
     <div class="card-content" v-show="!collapsed">
       <div class="card-top">
         <div class="session-name">{{ session.name }}</div>
+        <div v-if="!confirming" class="url-btn-wrapper">
+          <button
+            class="url-btn"
+            :class="{ copied: urlCopied }"
+            title="Session URL"
+            @click="onUrlClick($event)"
+          >
+            <svg v-if="urlCopied" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+          </button>
+          <div v-if="urlMenuOpen" class="url-dropdown">
+            <button @click="copySessionUrl($event)">Copy URL</button>
+            <button @click="resetSessionUrl($event)">Reset URL</button>
+          </div>
+          <div v-if="urlMenuOpen" class="url-backdrop" @click="closeUrlMenu($event)"></div>
+        </div>
         <button
           v-if="!confirming"
           class="notify-btn"
@@ -190,6 +246,12 @@ function onNotifyClick(e) {
   min-width: 0;
 }
 
+.url-btn-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.url-btn,
 .notify-btn,
 .close-btn {
   display: none;
@@ -203,9 +265,52 @@ function onNotifyClick(e) {
   border-radius: 4px;
   flex-shrink: 0;
 }
+.session-card:hover .url-btn,
 .session-card:hover .notify-btn,
 .session-card:hover .close-btn {
   display: flex;
+}
+.url-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent-primary);
+}
+.url-btn.copied {
+  display: flex;
+  color: #16a34a;
+}
+.url-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 100;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  min-width: 120px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.url-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.url-dropdown button:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.url-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
 }
 .notify-btn.active {
   display: flex;
