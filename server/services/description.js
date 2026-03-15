@@ -47,6 +47,25 @@ class DescriptionService {
     }
   }
 
+  reinitialize(apiKey) {
+    this.stop();
+    this.anthropicClient = null;
+    if (!apiKey) {
+      console.warn('[Description] No API key — service disabled');
+      return;
+    }
+    try {
+      const Anthropic = require('@anthropic-ai/sdk');
+      this.anthropicClient = new Anthropic({ apiKey });
+    } catch (err) {
+      console.warn('[Description] Failed to load @anthropic-ai/sdk — service disabled:', err.message);
+      return;
+    }
+    console.log(`[Description] Reinitialized, scanning every ${this.scanIntervalMs}ms`);
+    this.interval = setInterval(() => this.scanAll(), this.scanIntervalMs);
+    this.scanAll();
+  }
+
   async scanAll() {
     const sessions = this.sessionManager.list();
     for (const session of sessions) {

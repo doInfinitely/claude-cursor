@@ -5,6 +5,7 @@ export const useSessionStore = defineStore('sessions', () => {
   const sessions = ref([])
   const shells = ref([])
   const current = ref(null)
+  const apiKeyAlert = ref(false)
   let ws = null
   let reconnectTimer = null
   let reconnectDelay = 1000
@@ -74,7 +75,14 @@ export const useSessionStore = defineStore('sessions', () => {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
     ws = new WebSocket(`${proto}://${location.host}/ws`)
 
-    ws.onmessage = () => {
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data)
+        if (msg.event === 'apiKeyInvalid') {
+          apiKeyAlert.value = true
+          return
+        }
+      } catch {}
       fetchSessions()
     }
 
@@ -145,6 +153,24 @@ export const useSessionStore = defineStore('sessions', () => {
     return await res.json()
   }
 
+  async function fetchApiKeyStatus() {
+    const res = await fetch('/api/settings/api-key')
+    return await res.json()
+  }
+
+  async function saveApiKey(key) {
+    const res = await fetch('/api/settings/api-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key })
+    })
+    const data = await res.json()
+    if (data.valid) {
+      apiKeyAlert.value = false
+    }
+    return data
+  }
+
   async function removeNotifyConfig(name) {
     const res = await fetch(`/api/sessions/${name}/notify`, { method: 'DELETE' })
     if (!res.ok) {
@@ -158,6 +184,7 @@ export const useSessionStore = defineStore('sessions', () => {
     sessions,
     shells,
     current,
+    apiKeyAlert,
     init,
     fetchSessions,
     createSession,
@@ -171,6 +198,8 @@ export const useSessionStore = defineStore('sessions', () => {
     updateNotifyConfig,
     removeNotifyConfig,
     fetchTunnelStatus,
-    setBaseUrl
+    setBaseUrl,
+    fetchApiKeyStatus,
+    saveApiKey
   }
 })

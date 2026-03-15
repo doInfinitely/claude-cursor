@@ -208,7 +208,7 @@ function createApp(portStart, portEnd) {
   });
 
   // WebSocket
-  setupWebSocket(server, sessionManager);
+  const wss = setupWebSocket(server, sessionManager);
 
   server.on('upgrade', (req, socket, head) => {
     const sessionName = getSessionNameFromUrl(req.url);
@@ -254,6 +254,81 @@ function createApp(portStart, portEnd) {
   const needsActionService = new NeedsActionService(sessionManager);
   const descriptionService = new DescriptionService(sessionManager);
 
+  // --- API Key settings ---
+  async function validateApiKey(apiKey) {
+    if (!apiKey) return false;
+    try {
+      const Anthropic = require('@anthropic-ai/sdk');
+      const client = new Anthropic({ apiKey });
+      await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'hi' }]
+      });
+      return true;
+    } catch (err) {
+      console.warn('[ApiKey] Validation failed:', err.message);
+      return false;
+    }
+  }
+
+  function maskApiKey(key) {
+    if (!key) return null;
+    if (key.length <= 12) return key.slice(0, 4) + '****';
+    return key.slice(0, 10) + '...' + key.slice(-4);
+  }
+
+  function broadcastWs(event, data) {
+    const message = JSON.stringify({ event, data });
+    for (const client of wss.clients) {
+      if (client.readyState === 1) {
+        client.send(message);
+      }
+    }
+  }
+
+  app.get('/api/settings/api-key', async (req, res) => {
+    const key = process.env.ANTHROPIC_API_KEY || '';
+    const configured = !!key;
+    let valid = false;
+    if (configured) {
+      valid = await validateApiKey(key);
+    }
+    res.json({ configured, valid, maskedKey: maskApiKey(key) });
+  });
+
+  app.post('/api/settings/api-key', async (req, res) => {
+    const { key } = req.body;
+    if (!key) {
+      return res.status(400).json({ valid: false, error: 'No key provided' });
+    }
+    const valid = await validateApiKey(key);
+    if (!valid) {
+      return res.json({ valid: false, error: 'Invalid API key — validation call failed' });
+    }
+    process.env.ANTHROPIC_API_KEY = key;
+    persistEnvVar('ANTHROPIC_API_KEY', key);
+    needsActionService.reinitialize(key);
+    descriptionService.reinitialize(key);
+    res.json({ valid: true });
+  });
+
+  // Periodic API key health check (every 5 minutes)
+  let apiKeyHealthInterval = null;
+  function startApiKeyHealthCheck() {
+    if (apiKeyHealthInterval) clearInterval(apiKeyHealthInterval);
+    apiKeyHealthInterval = setInterval(async () => {
+      const key = process.env.ANTHROPIC_API_KEY;
+      if (!key) return;
+      const valid = await validateApiKey(key);
+      if (!valid) {
+        console.warn('[ApiKey] Health check failed — broadcasting alert');
+        broadcastWs('apiKeyInvalid', { message: 'API key validation failed' });
+      }
+    }, 5 * 60 * 1000);
+  }
+  startApiKeyHealthCheck();
+
   // Persist notifyConfig: save on change, restore on session create/recover
   const savedNotifyConfigs = loadNotifyConfigs();
 
@@ -278,14 +353,14 @@ function createApp(portStart, portEnd) {
     return result;
   };
 
-  return { app, server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel };
+  return { app, server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval };
 }
 
 async function start(port, host) {
   const portStart = parseInt(process.env.TTYD_PORT_RANGE_START || '7681', 10);
   const portEnd = parseInt(process.env.TTYD_PORT_RANGE_END || '7780', 10);
 
-  const { server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel } = createApp(portStart, portEnd);
+  const { server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval } = createApp(portStart, portEnd);
 
   return new Promise((resolve) => {
     server.listen(port, host, async () => {
@@ -307,7 +382,7 @@ async function start(port, host) {
         }
       });
 
-      resolve({ server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel });
+      resolve({ server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval });
     });
   });
 }
@@ -317,9 +392,10 @@ if (require.main === module) {
   const PORT = parseInt(process.env.PORT || '3000', 10);
   const HOST = process.env.HOST || '0.0.0.0';
 
-  start(PORT, HOST).then(({ sessionManager, needsActionService, descriptionService, discordBot, slackBot, tunnel }) => {
+  start(PORT, HOST).then(({ sessionManager, needsActionService, descriptionService, discordBot, slackBot, tunnel, apiKeyHealthInterval }) => {
     function cleanup() {
       console.log('\nCleaning up...');
+      if (apiKeyHealthInterval) clearInterval(apiKeyHealthInterval);
       tunnel.stop();
       needsActionService.stop();
       descriptionService.stop();
