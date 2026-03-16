@@ -141,7 +141,7 @@ function createApp(portStart, portEnd) {
         proxyRes.on('data', (chunk) => chunks.push(chunk));
         proxyRes.on('end', () => {
           let body = Buffer.concat(chunks).toString('utf-8');
-          body = body.replace('</body>', '<script>' + MOBILE_TOOLBAR_SCRIPT + '</script></body>');
+          body = body.replace('</head>', '<script>' + MOBILE_TOOLBAR_SCRIPT + '</script></head>');
           const headers = Object.assign({}, proxyRes.headers);
           delete headers['transfer-encoding'];
           delete headers['content-encoding'];
