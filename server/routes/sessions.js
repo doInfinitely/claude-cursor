@@ -8,7 +8,7 @@ const router = express.Router();
 
 const UPLOAD_DIR = path.join(os.tmpdir(), 'claude-cursor-uploads');
 
-module.exports = function (sessionManager, { notifier } = {}) {
+module.exports = function (sessionManager, { notifier, shareTokens, tunnel } = {}) {
   router.get('/shells', (req, res) => {
     res.json({ shells: sessionManager.getShells() });
   });
@@ -107,6 +107,63 @@ module.exports = function (sessionManager, { notifier } = {}) {
     try {
       const session = sessionManager.updateNotifyConfig(req.params.name, null);
       res.json(session);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Share token endpoints
+  router.post('/:name/share', async (req, res) => {
+    try {
+      const session = sessionManager.getSession(req.params.name);
+      const expiresIn = parseInt(req.body.expiresIn) || 1440;
+      const { token, expiresAt } = shareTokens.create(session.name, expiresIn);
+
+      const relayUrl = process.env.RELAY_URL;
+      const tunnelUrl = tunnel && tunnel.getUrl();
+      let shareUrl = null;
+
+      if (relayUrl) {
+        if (!tunnelUrl) {
+          // Token created but can't register — clean up and error
+          shareTokens.revoke(token);
+          return res.status(503).json({ error: 'Tunnel not connected yet. Please try again in a moment.' });
+        }
+        try {
+          await fetch(`${relayUrl}/api/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, tunnelUrl, sessionName: session.name, expiresAt }),
+          });
+          shareUrl = `${relayUrl}/s/${token}`;
+        } catch (err) {
+          console.warn('[Relay] Registration failed:', err.message);
+          shareTokens.revoke(token);
+          return res.status(502).json({ error: 'Failed to register share link with relay.' });
+        }
+      }
+
+      res.json({ token, path: `/s/${token}`, shareUrl, expiresAt });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.get('/:name/share', (req, res) => {
+    try {
+      const session = sessionManager.getSession(req.params.name);
+      const shares = shareTokens.listForSession(session.name);
+      res.json({ shares });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.delete('/:name/share', (req, res) => {
+    try {
+      sessionManager.getSession(req.params.name);
+      shareTokens.revokeForSession(req.params.name);
+      res.json({ ok: true });
     } catch (err) {
       res.status(400).json({ error: err.message });
     }

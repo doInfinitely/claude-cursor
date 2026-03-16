@@ -8,29 +8,42 @@ const props = defineProps({
   collapsed: Boolean,
 });
 
-const emit = defineEmits(["configure-notify"]);
+const emit = defineEmits(["configure-notify", "share-custom"]);
 const store = useSessionStore();
 const confirming = ref(false);
 const urlMenuOpen = ref(false);
 const urlCopied = ref(false);
+const sharing = ref(false);
 
 async function onUrlClick(e) {
   e.stopPropagation();
   urlMenuOpen.value = !urlMenuOpen.value;
 }
 
-async function copySessionUrl(e) {
+async function copyShareUrl(e, expiresIn) {
   e.stopPropagation();
+  if (sharing.value) return;
+  sharing.value = true;
   try {
-    const status = await store.fetchTunnelStatus();
-    const base = status.baseUrl || status.url;
-    if (!base) return;
-    const url = `${base}/terminal/${encodeURIComponent(props.session.name)}`;
+    const share = await store.shareSession(props.session.name, expiresIn);
+    let url = share.shareUrl;
+    if (!url) {
+      const status = await store.fetchTunnelStatus();
+      const base = status.url || status.baseUrl || window.location.origin;
+      url = `${base}${share.path}`;
+    }
     await navigator.clipboard.writeText(url);
     urlCopied.value = true;
     setTimeout(() => (urlCopied.value = false), 2000);
   } catch {}
+  sharing.value = false;
   urlMenuOpen.value = false;
+}
+
+function openCustomShare(e) {
+  e.stopPropagation();
+  urlMenuOpen.value = false;
+  emit("share-custom", props.session.name);
 }
 
 async function resetSessionUrl(e) {
@@ -100,7 +113,12 @@ function onNotifyClick(e) {
             </svg>
           </button>
           <div v-if="urlMenuOpen" class="url-dropdown">
-            <button @click="copySessionUrl($event)">Copy URL</button>
+            <div class="dropdown-label">Share link expires in</div>
+            <button @click="copyShareUrl($event, 60)">1 hour</button>
+            <button @click="copyShareUrl($event, 1440)">24 hours</button>
+            <button @click="copyShareUrl($event, 10080)">7 days</button>
+            <button @click="openCustomShare($event)">Custom...</button>
+            <div class="dropdown-divider"></div>
             <button @click="resetSessionUrl($event)">Reset URL</button>
           </div>
           <div v-if="urlMenuOpen" class="url-backdrop" @click="closeUrlMenu($event)"></div>
@@ -306,6 +324,19 @@ function onNotifyClick(e) {
 .url-dropdown button:hover {
   background: var(--bg-tertiary);
   color: var(--text-primary);
+}
+.dropdown-label {
+  padding: 4px 10px 2px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.dropdown-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
 }
 .url-backdrop {
   position: fixed;
