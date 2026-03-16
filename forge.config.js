@@ -3,7 +3,9 @@ module.exports = {
     name: 'Claude Cursor',
     executableName: 'claude-cursor',
     icon: './assets/icon',
-    asar: true,
+    asar: {
+      unpackDir: 'vendor',
+    },
     ...(process.env.APPLE_ID ? {
       osxSign: {},
       osxNotarize: {
