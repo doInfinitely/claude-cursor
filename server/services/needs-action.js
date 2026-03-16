@@ -94,6 +94,26 @@ class NeedsActionService {
     }
   }
 
+  reinitialize(apiKey) {
+    this.stop();
+    this.anthropicClient = null;
+    this.mode = process.env.NEEDS_ACTION_MODE || 'hybrid';
+    if (apiKey && this.mode !== 'regex') {
+      try {
+        const Anthropic = require('@anthropic-ai/sdk');
+        this.anthropicClient = new Anthropic({ apiKey });
+      } catch (err) {
+        console.warn('[NeedsAction] Failed to load @anthropic-ai/sdk — falling back to regex mode:', err.message);
+        this.mode = 'regex';
+      }
+    } else if (!apiKey) {
+      this.mode = 'regex';
+    }
+    console.log(`[NeedsAction] Reinitialized in "${this.mode}" mode`);
+    this.interval = setInterval(() => this.scanAll(), this.scanIntervalMs);
+    this.scanAll();
+  }
+
   async scanAll() {
     const sessions = this.sessionManager.list();
     for (const session of sessions) {

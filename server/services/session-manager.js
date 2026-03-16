@@ -113,7 +113,9 @@ const loginPath = resolveLoginPath();
 const basePath = loginPath || process.env.PATH || '';
 const SPAWN_ENV = {
   ...process.env,
-  PATH: process.platform === 'win32' ? basePath : `/usr/local/bin:/opt/homebrew/bin:${basePath}`
+  PATH: process.platform === 'win32' ? basePath : `/usr/local/bin:/opt/homebrew/bin:${basePath}`,
+  COLORTERM: 'truecolor',
+  LANG: process.env.LANG || 'en_US.UTF-8',
 };
 // Prevent nested tmux when server itself runs inside tmux
 delete SPAWN_ENV.TMUX;
@@ -186,11 +188,14 @@ class SessionManager extends EventEmitter {
     const shellStr = shellParts.join(' ');
     // Use non-login shell so the SPAWN_ENV PATH (resolved via resolveLoginPath())
     // is preserved. Login shells trigger path_helper which resets PATH from scratch.
-    const tmuxArgs = ['tmux', 'new', '-A', '-s', name, '-c', home, ...shellParts];
+    const tmuxArgs = ['tmux', '-u', 'new', '-A', '-s', name, '-c', home, ...shellParts];
     // Tell tmux to resize to the latest client (avoids stale column count)
     tmuxArgs.push(';', 'set-option', '-t', name, 'window-size', 'latest');
     // Ensure new tmux windows also use non-login shell with inherited PATH
     tmuxArgs.push(';', 'set-option', '-t', name, 'default-command', shellStr);
+    // Enable truecolor (24-bit color) passthrough so programs like Claude Code render correctly
+    tmuxArgs.push(';', 'set-option', '-g', 'default-terminal', 'tmux-256color');
+    tmuxArgs.push(';', 'set-option', '-sa', 'terminal-overrides', ',xterm-256color:RGB');
 
     const env = { ...SPAWN_ENV };
     if (shellSpec) env.SHELL = typeof shellSpec === 'string' ? shellSpec : shellSpec.path;
@@ -200,6 +205,7 @@ class SessionManager extends EventEmitter {
       '-b', `/terminal/${name}`,
       '-s', '9',
       '-t', `theme=${TTYD_THEME}`,
+      '-t', 'fontFamily=Menlo, Monaco, Courier New, monospace',
       ...tmuxArgs
     ], {
       stdio: ['ignore', 'pipe', 'pipe'],

@@ -72,6 +72,8 @@ function checkDependencies() {
 }
 
 async function startServer() {
+  // Force production mode so Vite middleware isn't loaded in packaged app
+  process.env.NODE_ENV = 'production';
   const { start } = require('../server/index.js');
   // Port 0 = OS assigns a free port
   serverHandle = await start(0, '127.0.0.1');

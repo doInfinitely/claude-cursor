@@ -8,7 +8,7 @@ defineProps({
   mobile: Boolean,
 });
 
-const emit = defineEmits(["create", "configure-notify"]);
+const emit = defineEmits(["create", "configure-notify", "share-custom"]);
 const store = useSessionStore();
 
 const ACTION_PRIORITY = { approval: 0, completed: 1, prompt: 2 };
@@ -83,6 +83,7 @@ const approvalCount = computed(() =>
         :collapsed="collapsed"
         @click="store.select(s.name)"
         @configure-notify="(name) => emit('configure-notify', name)"
+        @share-custom="(name) => emit('share-custom', name)"
       />
 
       <div v-if="!store.sessions.length" class="empty-hint" v-show="!collapsed">

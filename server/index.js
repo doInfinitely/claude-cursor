@@ -1,9 +1,15 @@
 require('dotenv').config();
+
+// Hardcoded relay URL — share links always go through this relay
+if (!process.env.RELAY_URL) {
+  process.env.RELAY_URL = 'https://claude-cursor-relay-production.up.railway.app';
+}
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const MOBILE_TOOLBAR_SCRIPT = require('./mobile-toolbar');
 
 // Persist key-value pairs to a .env file (append/update)
 function persistEnvVar(key, value) {
@@ -62,15 +68,18 @@ const DiscordBot = require('./services/discord-bot');
 const SlackBot = require('./services/slack-bot');
 const TunnelService = require('./services/tunnel');
 const sessionsRoute = require('./routes/sessions');
+const ShareTokenStore = require('./services/share-tokens');
 const setupWebSocket = require('./ws');
 
-function createApp(portStart, portEnd) {
+async function createApp(portStart, portEnd) {
   const app = express();
   const server = http.createServer(app);
 
-  app.use(express.json());
+  app.use(express.json({ limit: '20mb' }));
 
+  // Allow clipboard access in iframes (needed for paste in ttyd terminals)
   app.use((req, res, next) => {
+    res.setHeader('Permissions-Policy', 'clipboard-read=(self), clipboard-write=(self)');
     if (req.path.startsWith('/api')) {
       console.log(`[API] ${req.method} ${req.path}`);
     }
@@ -78,6 +87,7 @@ function createApp(portStart, portEnd) {
   });
 
   const sessionManager = new SessionManager(portStart, portEnd);
+  const shareTokens = new ShareTokenStore();
 
   // Notification bots (start lazily — they connect only if tokens are configured)
   const discordBot = new DiscordBot();
@@ -108,14 +118,49 @@ function createApp(portStart, portEnd) {
   const ttydProxy = createProxyMiddleware({
     target: 'http://127.0.0.1',
     changeOrigin: true,
+    selfHandleResponse: true,
     router: (req) => `http://127.0.0.1:${req.ttydSession.port}`,
     pathRewrite: (path, req) => req.originalUrl || req.url,
-    onError: (err, req, res) => {
-      console.error('Proxy error:', err);
-      if (res && typeof res.status === 'function' && !res.headersSent) {
-        res.status(502).json({ error: 'Proxy error' });
-      }
-    }
+    on: {
+      proxyReq(proxyReq) {
+        // Request uncompressed responses so we can safely modify HTML
+        proxyReq.setHeader('accept-encoding', 'identity');
+      },
+      proxyRes(proxyRes, req, res) {
+        const contentType = proxyRes.headers['content-type'] || '';
+        if (!contentType.includes('text/html')) {
+          // Non-HTML: pipe through directly
+          const headers = Object.assign({}, proxyRes.headers);
+          delete headers['transfer-encoding'];
+          res.writeHead(proxyRes.statusCode, headers);
+          proxyRes.pipe(res);
+          return;
+        }
+        // Buffer HTML to inject mobile toolbar inline script
+        const chunks = [];
+        proxyRes.on('data', (chunk) => chunks.push(chunk));
+        proxyRes.on('end', () => {
+          let body = Buffer.concat(chunks).toString('utf-8');
+          body = body.replace('</head>', '<script>' + MOBILE_TOOLBAR_SCRIPT + '</script></head>');
+          const headers = Object.assign({}, proxyRes.headers);
+          delete headers['transfer-encoding'];
+          delete headers['content-encoding'];
+          headers['content-length'] = Buffer.byteLength(body);
+          res.writeHead(proxyRes.statusCode, headers);
+          res.end(body);
+        });
+        proxyRes.on('error', (err) => {
+          console.error('Proxy response stream error:', err);
+          if (!res.headersSent) res.status(502).json({ error: 'Proxy error' });
+        });
+      },
+      error(err, req, res) {
+        console.error('Proxy error:', err);
+        if (res && typeof res.status === 'function' && !res.headersSent) {
+          res.status(502).json({ error: 'Proxy error' });
+        }
+      },
+    },
   });
 
   // Proxy /terminal/:name to corresponding ttyd instance
@@ -135,8 +180,48 @@ function createApp(portStart, portEnd) {
   });
   app.use('/terminal', ttydProxy);
 
+  // Share page — serves minimal HTML with full-screen iframe to ttyd
+  app.get('/s/:token', (req, res) => {
+    const result = shareTokens.validate(req.params.token);
+    if (!result) {
+      return res.status(404).send('Link expired or invalid');
+    }
+    const session = resolveRunningSession(result.sessionName);
+    if (!session) {
+      return res.status(404).send('Session not running');
+    }
+    const html = `<!DOCTYPE html>
+<html><head>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Terminal</title>
+  <style>html,body{margin:0;height:100%;background:#3b110c}
+  iframe{width:100%;height:100%;border:none}</style>
+</head><body>
+  <iframe src="/terminal/${encodeURIComponent(session.name)}" allow="clipboard-read;clipboard-write"></iframe>
+  <script>${MOBILE_TOOLBAR_SCRIPT}</script>
+</body></html>`;
+    res.type('html').send(html);
+  });
+
+  // Resolve token API — used by iOS app to get session info from a share link
+  app.get('/api/share/:token', (req, res) => {
+    const result = shareTokens.validate(req.params.token);
+    if (!result) {
+      return res.status(404).json({ error: 'Link expired or invalid' });
+    }
+    try {
+      const session = sessionManager.getSession(result.sessionName);
+      res.json({ sessionName: session.name, status: session.status });
+    } catch (err) {
+      res.status(404).json({ error: 'Session not found' });
+    }
+  });
+
+  // Tunnel service (created early so share routes can access tunnel URL)
+  const tunnel = new TunnelService();
+
   // API routes
-  app.use('/api/sessions', sessionsRoute(sessionManager, { notifier }));
+  app.use('/api/sessions', sessionsRoute(sessionManager, { notifier, shareTokens, tunnel }));
 
   app.get('/api/notifications/targets', async (req, res) => {
     try {
@@ -198,15 +283,30 @@ function createApp(portStart, portEnd) {
     res.json(results);
   });
 
-  // Serve frontend static files in production
-  const publicDir = path.join(__dirname, 'public');
-  app.use(express.static(publicDir));
-  app.get(/^\/(?!api).*/, (req, res) => {
-    res.sendFile(path.join(publicDir, 'index.html'));
-  });
-
   // WebSocket
-  setupWebSocket(server, sessionManager);
+  const wss = setupWebSocket(server, sessionManager);
+
+  // Serve frontend — Vite middleware in dev, static files in production
+  const isDev = process.env.NODE_ENV !== 'production';
+  let viteDevServer = null;
+  if (isDev) {
+    const { createServer: createViteServer } = await import('vite');
+    viteDevServer = await createViteServer({
+      root: path.join(__dirname, '..', 'frontend'),
+      server: {
+        middlewareMode: true,
+        hmr: { server },
+      },
+      appType: 'spa',
+    });
+    app.use(viteDevServer.middlewares);
+  } else {
+    const publicDir = path.join(__dirname, 'public');
+    app.use(express.static(publicDir));
+    app.get(/^\/(?!api).*/, (req, res) => {
+      res.sendFile(path.join(publicDir, 'index.html'));
+    });
+  }
 
   server.on('upgrade', (req, socket, head) => {
     const sessionName = getSessionNameFromUrl(req.url);
@@ -219,9 +319,6 @@ function createApp(portStart, portEnd) {
     req.ttydSession = session;
     ttydProxy.upgrade(req, socket, head);
   });
-
-  // Tunnel service
-  const tunnel = new TunnelService();
 
   // Tunnel status API
   app.get('/api/tunnel/status', (req, res) => {
@@ -252,6 +349,81 @@ function createApp(portStart, portEnd) {
   const needsActionService = new NeedsActionService(sessionManager);
   const descriptionService = new DescriptionService(sessionManager);
 
+  // --- API Key settings ---
+  async function validateApiKey(apiKey) {
+    if (!apiKey) return false;
+    try {
+      const Anthropic = require('@anthropic-ai/sdk');
+      const client = new Anthropic({ apiKey });
+      await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'hi' }]
+      });
+      return true;
+    } catch (err) {
+      console.warn('[ApiKey] Validation failed:', err.message);
+      return false;
+    }
+  }
+
+  function maskApiKey(key) {
+    if (!key) return null;
+    if (key.length <= 12) return key.slice(0, 4) + '****';
+    return key.slice(0, 10) + '...' + key.slice(-4);
+  }
+
+  function broadcastWs(event, data) {
+    const message = JSON.stringify({ event, data });
+    for (const client of wss.clients) {
+      if (client.readyState === 1) {
+        client.send(message);
+      }
+    }
+  }
+
+  app.get('/api/settings/api-key', async (req, res) => {
+    const key = process.env.ANTHROPIC_API_KEY || '';
+    const configured = !!key;
+    let valid = false;
+    if (configured) {
+      valid = await validateApiKey(key);
+    }
+    res.json({ configured, valid, maskedKey: maskApiKey(key) });
+  });
+
+  app.post('/api/settings/api-key', async (req, res) => {
+    const { key } = req.body;
+    if (!key) {
+      return res.status(400).json({ valid: false, error: 'No key provided' });
+    }
+    const valid = await validateApiKey(key);
+    if (!valid) {
+      return res.json({ valid: false, error: 'Invalid API key — validation call failed' });
+    }
+    process.env.ANTHROPIC_API_KEY = key;
+    persistEnvVar('ANTHROPIC_API_KEY', key);
+    needsActionService.reinitialize(key);
+    descriptionService.reinitialize(key);
+    res.json({ valid: true });
+  });
+
+  // Periodic API key health check (every 5 minutes)
+  let apiKeyHealthInterval = null;
+  function startApiKeyHealthCheck() {
+    if (apiKeyHealthInterval) clearInterval(apiKeyHealthInterval);
+    apiKeyHealthInterval = setInterval(async () => {
+      const key = process.env.ANTHROPIC_API_KEY;
+      if (!key) return;
+      const valid = await validateApiKey(key);
+      if (!valid) {
+        console.warn('[ApiKey] Health check failed — broadcasting alert');
+        broadcastWs('apiKeyInvalid', { message: 'API key validation failed' });
+      }
+    }, 5 * 60 * 1000);
+  }
+  startApiKeyHealthCheck();
+
   // Persist notifyConfig: save on change, restore on session create/recover
   const savedNotifyConfigs = loadNotifyConfigs();
 
@@ -276,14 +448,30 @@ function createApp(portStart, portEnd) {
     return result;
   };
 
-  return { app, server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel };
+  // Revoke share tokens when a session is deleted
+  sessionManager.on('session:deleted', async (session) => {
+    shareTokens.revokeForSession(session.name);
+    const relayUrl = process.env.RELAY_URL;
+    if (relayUrl) {
+      try {
+        await fetch(`${relayUrl}/api/revoke`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tunnelUrl: tunnel.getUrl(), sessionName: session.name }),
+        });
+      } catch {}
+    }
+  });
+
+  return { app, server, sessionManager, shareTokens, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval, get userUrlOverride() { return userUrlOverride; } };
 }
 
 async function start(port, host) {
   const portStart = parseInt(process.env.TTYD_PORT_RANGE_START || '7681', 10);
   const portEnd = parseInt(process.env.TTYD_PORT_RANGE_END || '7780', 10);
 
-  const { server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel } = createApp(portStart, portEnd);
+  const appResult = await createApp(portStart, portEnd);
+  const { server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval } = appResult;
 
   return new Promise((resolve) => {
     server.listen(port, host, async () => {
@@ -300,12 +488,12 @@ async function start(port, host) {
 
       // Start tunnel (non-blocking — works without cloudflared)
       tunnel.start(addr.port).then((tunnelUrl) => {
-        if (tunnelUrl && !userUrlOverride) {
+        if (tunnelUrl && !appResult.userUrlOverride) {
           notifier.setBaseUrl(tunnelUrl);
         }
       });
 
-      resolve({ server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel });
+      resolve({ server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval });
     });
   });
 }
@@ -315,9 +503,11 @@ if (require.main === module) {
   const PORT = parseInt(process.env.PORT || '3000', 10);
   const HOST = process.env.HOST || '0.0.0.0';
 
-  start(PORT, HOST).then(({ sessionManager, needsActionService, descriptionService, discordBot, slackBot, tunnel }) => {
+  start(PORT, HOST).then(({ sessionManager, shareTokens, needsActionService, descriptionService, discordBot, slackBot, tunnel, apiKeyHealthInterval }) => {
     function cleanup() {
       console.log('\nCleaning up...');
+      if (apiKeyHealthInterval) clearInterval(apiKeyHealthInterval);
+      shareTokens.stop();
       tunnel.stop();
       needsActionService.stop();
       descriptionService.stop();

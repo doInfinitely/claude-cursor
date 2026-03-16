@@ -4,6 +4,8 @@ import Sidebar from "./components/Sidebar.vue";
 import TerminalView from "./components/TerminalView.vue";
 import CreateDialog from "./components/CreateDialog.vue";
 import NotifyConfigDialog from "./components/NotifyConfigDialog.vue";
+import ApiKeyDialog from "./components/ApiKeyDialog.vue";
+import ShareExpiryDialog from "./components/ShareExpiryDialog.vue";
 import Toast from "./components/Toast.vue";
 import { useSessionStore } from "./stores/sessions";
 
@@ -27,7 +29,9 @@ const shellSummary = computed(() => {
 });
 const sidebarCollapsed = ref(false);
 const showCreateDialog = ref(false);
+const showApiKeyDialog = ref(false);
 const notifyConfigSession = ref(null);
+const shareCustomSession = ref(null);
 const toastRef = ref(null);
 
 const tunnelUrl = ref(null);
@@ -134,6 +138,16 @@ function handleMobileOverlayClick() {
           </svg>
         </div>
         <h1 class="toolbar-title">Claude Cursor</h1>
+        <button
+          class="icon-btn settings-btn"
+          @click="showApiKeyDialog = true"
+          title="API Key Settings"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+          </svg>
+          <span v-if="store.apiKeyAlert" class="alert-badge"></span>
+        </button>
       </div>
 
       <div class="toolbar-right">
@@ -177,6 +191,7 @@ function handleMobileOverlayClick() {
         :collapsed="sidebarCollapsed"
         @create="showCreateDialog = true"
         @configure-notify="(name) => notifyConfigSession = name"
+        @share-custom="(name) => shareCustomSession = name"
       />
 
       <TerminalView @create="showCreateDialog = true" />
@@ -187,6 +202,15 @@ function handleMobileOverlayClick() {
       v-if="notifyConfigSession"
       :session-name="notifyConfigSession"
       @close="notifyConfigSession = null"
+    />
+    <ShareExpiryDialog
+      v-if="shareCustomSession"
+      :session-name="shareCustomSession"
+      @close="shareCustomSession = null"
+    />
+    <ApiKeyDialog
+      v-if="showApiKeyDialog"
+      @close="showApiKeyDialog = false"
     />
     <Toast ref="toastRef" />
   </div>
@@ -205,16 +229,19 @@ function handleMobileOverlayClick() {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
+  padding-left: 80px; /* space for macOS traffic lights */
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   z-index: 30; /* Desktop z-index */
   background: var(--bg-primary); /* Ensure background is opaque or semi-opaque */
+  -webkit-app-region: drag;
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  -webkit-app-region: no-drag;
 }
 
 .toggle-btn {
@@ -257,10 +284,39 @@ function handleMobileOverlayClick() {
   letter-spacing: -0.5px;
 }
 
+.settings-btn {
+  position: relative;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.settings-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.alert-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #dc2626;
+  box-shadow: 0 0 6px rgba(220, 38, 38, 0.6);
+}
+
 .toolbar-right {
   display: flex;
   align-items: center;
   gap: 12px;
+  -webkit-app-region: no-drag;
 }
 
 .shell-summary {

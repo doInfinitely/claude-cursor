@@ -2,7 +2,16 @@ module.exports = {
   packagerConfig: {
     name: 'Claude Cursor',
     executableName: 'claude-cursor',
+    icon: './assets/icon',
     asar: true,
+    ...(process.env.APPLE_ID ? {
+      osxSign: {},
+      osxNotarize: {
+        appleId: process.env.APPLE_ID,
+        appleIdPassword: process.env.APPLE_ID_PASSWORD,
+        teamId: process.env.APPLE_TEAM_ID,
+      },
+    } : {}),
     ignore: [
       /^\/frontend\/src/,
       /^\/frontend\/node_modules/,
@@ -25,6 +34,7 @@ module.exports = {
       name: '@electron-forge/maker-dmg',
       config: {
         format: 'ULFO',
+        icon: './assets/icon.icns',
       },
     },
     {
@@ -39,6 +49,7 @@ module.exports = {
         options: {
           maintainer: 'Claude Cursor',
           homepage: 'https://github.com/anthropics/claude-cursor',
+          icon: './assets/icon.png',
         },
       },
     },
