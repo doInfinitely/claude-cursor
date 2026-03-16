@@ -71,7 +71,7 @@ const sessionsRoute = require('./routes/sessions');
 const ShareTokenStore = require('./services/share-tokens');
 const setupWebSocket = require('./ws');
 
-function createApp(portStart, portEnd) {
+async function createApp(portStart, portEnd) {
   const app = express();
   const server = http.createServer(app);
 
@@ -283,15 +283,30 @@ function createApp(portStart, portEnd) {
     res.json(results);
   });
 
-  // Serve frontend static files in production
-  const publicDir = path.join(__dirname, 'public');
-  app.use(express.static(publicDir));
-  app.get(/^\/(?!api).*/, (req, res) => {
-    res.sendFile(path.join(publicDir, 'index.html'));
-  });
-
   // WebSocket
   const wss = setupWebSocket(server, sessionManager);
+
+  // Serve frontend — Vite middleware in dev, static files in production
+  const isDev = process.env.NODE_ENV !== 'production';
+  let viteDevServer = null;
+  if (isDev) {
+    const { createServer: createViteServer } = await import('vite');
+    viteDevServer = await createViteServer({
+      root: path.join(__dirname, '..', 'frontend'),
+      server: {
+        middlewareMode: true,
+        hmr: { server },
+      },
+      appType: 'spa',
+    });
+    app.use(viteDevServer.middlewares);
+  } else {
+    const publicDir = path.join(__dirname, 'public');
+    app.use(express.static(publicDir));
+    app.get(/^\/(?!api).*/, (req, res) => {
+      res.sendFile(path.join(publicDir, 'index.html'));
+    });
+  }
 
   server.on('upgrade', (req, socket, head) => {
     const sessionName = getSessionNameFromUrl(req.url);
@@ -455,7 +470,7 @@ async function start(port, host) {
   const portStart = parseInt(process.env.TTYD_PORT_RANGE_START || '7681', 10);
   const portEnd = parseInt(process.env.TTYD_PORT_RANGE_END || '7780', 10);
 
-  const appResult = createApp(portStart, portEnd);
+  const appResult = await createApp(portStart, portEnd);
   const { server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval } = appResult;
 
   return new Promise((resolve) => {

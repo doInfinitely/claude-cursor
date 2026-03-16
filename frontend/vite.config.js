@@ -8,16 +8,6 @@ export default defineConfig({
     emptyOutDir: true
   },
   server: {
-    proxy: {
-      '/api': 'http://localhost:3000',
-      '/ws': {
-        target: 'ws://localhost:3000',
-        ws: true
-      },
-      '/terminal': {
-        target: 'http://localhost:3000',
-        ws: true
-      }
-    }
+    // In dev, Vite runs as Express middleware (same origin) — no proxy needed
   }
 })
