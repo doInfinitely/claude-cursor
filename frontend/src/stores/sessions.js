@@ -171,6 +171,22 @@ export const useSessionStore = defineStore('sessions', () => {
     return data
   }
 
+  async function shareSession(name, expiresIn) {
+    const body = expiresIn ? { expiresIn } : {}
+    const res = await fetch(`/api/sessions/${name}/share`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.error)
+    }
+    const data = await res.json()
+    return data
+  }
+
+
   async function removeNotifyConfig(name) {
     const res = await fetch(`/api/sessions/${name}/notify`, { method: 'DELETE' })
     if (!res.ok) {
@@ -197,6 +213,7 @@ export const useSessionStore = defineStore('sessions', () => {
     fetchNotifyStatus,
     updateNotifyConfig,
     removeNotifyConfig,
+    shareSession,
     fetchTunnelStatus,
     setBaseUrl,
     fetchApiKeyStatus,

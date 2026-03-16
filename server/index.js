@@ -1,9 +1,15 @@
 require('dotenv').config();
+
+// Hardcoded relay URL — share links always go through this relay
+if (!process.env.RELAY_URL) {
+  process.env.RELAY_URL = 'https://claude-cursor-relay-production.up.railway.app';
+}
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const MOBILE_TOOLBAR_SCRIPT = require('./mobile-toolbar');
 
 // Persist key-value pairs to a .env file (append/update)
 function persistEnvVar(key, value) {
@@ -62,13 +68,14 @@ const DiscordBot = require('./services/discord-bot');
 const SlackBot = require('./services/slack-bot');
 const TunnelService = require('./services/tunnel');
 const sessionsRoute = require('./routes/sessions');
+const ShareTokenStore = require('./services/share-tokens');
 const setupWebSocket = require('./ws');
 
 function createApp(portStart, portEnd) {
   const app = express();
   const server = http.createServer(app);
 
-  app.use(express.json());
+  app.use(express.json({ limit: '20mb' }));
 
   // Allow clipboard access in iframes (needed for paste in ttyd terminals)
   app.use((req, res, next) => {
@@ -80,6 +87,7 @@ function createApp(portStart, portEnd) {
   });
 
   const sessionManager = new SessionManager(portStart, portEnd);
+  const shareTokens = new ShareTokenStore();
 
   // Notification bots (start lazily — they connect only if tokens are configured)
   const discordBot = new DiscordBot();
@@ -110,14 +118,49 @@ function createApp(portStart, portEnd) {
   const ttydProxy = createProxyMiddleware({
     target: 'http://127.0.0.1',
     changeOrigin: true,
+    selfHandleResponse: true,
     router: (req) => `http://127.0.0.1:${req.ttydSession.port}`,
     pathRewrite: (path, req) => req.originalUrl || req.url,
-    onError: (err, req, res) => {
-      console.error('Proxy error:', err);
-      if (res && typeof res.status === 'function' && !res.headersSent) {
-        res.status(502).json({ error: 'Proxy error' });
-      }
-    }
+    on: {
+      proxyReq(proxyReq) {
+        // Request uncompressed responses so we can safely modify HTML
+        proxyReq.setHeader('accept-encoding', 'identity');
+      },
+      proxyRes(proxyRes, req, res) {
+        const contentType = proxyRes.headers['content-type'] || '';
+        if (!contentType.includes('text/html')) {
+          // Non-HTML: pipe through directly
+          const headers = Object.assign({}, proxyRes.headers);
+          delete headers['transfer-encoding'];
+          res.writeHead(proxyRes.statusCode, headers);
+          proxyRes.pipe(res);
+          return;
+        }
+        // Buffer HTML to inject mobile toolbar inline script
+        const chunks = [];
+        proxyRes.on('data', (chunk) => chunks.push(chunk));
+        proxyRes.on('end', () => {
+          let body = Buffer.concat(chunks).toString('utf-8');
+          body = body.replace('</body>', '<script>' + MOBILE_TOOLBAR_SCRIPT + '</script></body>');
+          const headers = Object.assign({}, proxyRes.headers);
+          delete headers['transfer-encoding'];
+          delete headers['content-encoding'];
+          headers['content-length'] = Buffer.byteLength(body);
+          res.writeHead(proxyRes.statusCode, headers);
+          res.end(body);
+        });
+        proxyRes.on('error', (err) => {
+          console.error('Proxy response stream error:', err);
+          if (!res.headersSent) res.status(502).json({ error: 'Proxy error' });
+        });
+      },
+      error(err, req, res) {
+        console.error('Proxy error:', err);
+        if (res && typeof res.status === 'function' && !res.headersSent) {
+          res.status(502).json({ error: 'Proxy error' });
+        }
+      },
+    },
   });
 
   // Proxy /terminal/:name to corresponding ttyd instance
@@ -137,8 +180,48 @@ function createApp(portStart, portEnd) {
   });
   app.use('/terminal', ttydProxy);
 
+  // Share page — serves minimal HTML with full-screen iframe to ttyd
+  app.get('/s/:token', (req, res) => {
+    const result = shareTokens.validate(req.params.token);
+    if (!result) {
+      return res.status(404).send('Link expired or invalid');
+    }
+    const session = resolveRunningSession(result.sessionName);
+    if (!session) {
+      return res.status(404).send('Session not running');
+    }
+    const html = `<!DOCTYPE html>
+<html><head>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Terminal</title>
+  <style>html,body{margin:0;height:100%;background:#3b110c}
+  iframe{width:100%;height:100%;border:none}</style>
+</head><body>
+  <iframe src="/terminal/${encodeURIComponent(session.name)}" allow="clipboard-read;clipboard-write"></iframe>
+  <script>${MOBILE_TOOLBAR_SCRIPT}</script>
+</body></html>`;
+    res.type('html').send(html);
+  });
+
+  // Resolve token API — used by iOS app to get session info from a share link
+  app.get('/api/share/:token', (req, res) => {
+    const result = shareTokens.validate(req.params.token);
+    if (!result) {
+      return res.status(404).json({ error: 'Link expired or invalid' });
+    }
+    try {
+      const session = sessionManager.getSession(result.sessionName);
+      res.json({ sessionName: session.name, status: session.status });
+    } catch (err) {
+      res.status(404).json({ error: 'Session not found' });
+    }
+  });
+
+  // Tunnel service (created early so share routes can access tunnel URL)
+  const tunnel = new TunnelService();
+
   // API routes
-  app.use('/api/sessions', sessionsRoute(sessionManager, { notifier }));
+  app.use('/api/sessions', sessionsRoute(sessionManager, { notifier, shareTokens, tunnel }));
 
   app.get('/api/notifications/targets', async (req, res) => {
     try {
@@ -221,9 +304,6 @@ function createApp(portStart, portEnd) {
     req.ttydSession = session;
     ttydProxy.upgrade(req, socket, head);
   });
-
-  // Tunnel service
-  const tunnel = new TunnelService();
 
   // Tunnel status API
   app.get('/api/tunnel/status', (req, res) => {
@@ -353,7 +433,22 @@ function createApp(portStart, portEnd) {
     return result;
   };
 
-  return { app, server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval, get userUrlOverride() { return userUrlOverride; } };
+  // Revoke share tokens when a session is deleted
+  sessionManager.on('session:deleted', async (session) => {
+    shareTokens.revokeForSession(session.name);
+    const relayUrl = process.env.RELAY_URL;
+    if (relayUrl) {
+      try {
+        await fetch(`${relayUrl}/api/revoke`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tunnelUrl: tunnel.getUrl(), sessionName: session.name }),
+        });
+      } catch {}
+    }
+  });
+
+  return { app, server, sessionManager, shareTokens, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval, get userUrlOverride() { return userUrlOverride; } };
 }
 
 async function start(port, host) {
@@ -393,10 +488,11 @@ if (require.main === module) {
   const PORT = parseInt(process.env.PORT || '3000', 10);
   const HOST = process.env.HOST || '0.0.0.0';
 
-  start(PORT, HOST).then(({ sessionManager, needsActionService, descriptionService, discordBot, slackBot, tunnel, apiKeyHealthInterval }) => {
+  start(PORT, HOST).then(({ sessionManager, shareTokens, needsActionService, descriptionService, discordBot, slackBot, tunnel, apiKeyHealthInterval }) => {
     function cleanup() {
       console.log('\nCleaning up...');
       if (apiKeyHealthInterval) clearInterval(apiKeyHealthInterval);
+      shareTokens.stop();
       tunnel.stop();
       needsActionService.stop();
       descriptionService.stop();

@@ -5,6 +5,7 @@ import TerminalView from "./components/TerminalView.vue";
 import CreateDialog from "./components/CreateDialog.vue";
 import NotifyConfigDialog from "./components/NotifyConfigDialog.vue";
 import ApiKeyDialog from "./components/ApiKeyDialog.vue";
+import ShareExpiryDialog from "./components/ShareExpiryDialog.vue";
 import Toast from "./components/Toast.vue";
 import { useSessionStore } from "./stores/sessions";
 
@@ -30,6 +31,7 @@ const sidebarCollapsed = ref(false);
 const showCreateDialog = ref(false);
 const showApiKeyDialog = ref(false);
 const notifyConfigSession = ref(null);
+const shareCustomSession = ref(null);
 const toastRef = ref(null);
 
 const tunnelUrl = ref(null);
@@ -189,6 +191,7 @@ function handleMobileOverlayClick() {
         :collapsed="sidebarCollapsed"
         @create="showCreateDialog = true"
         @configure-notify="(name) => notifyConfigSession = name"
+        @share-custom="(name) => shareCustomSession = name"
       />
 
       <TerminalView @create="showCreateDialog = true" />
@@ -199,6 +202,11 @@ function handleMobileOverlayClick() {
       v-if="notifyConfigSession"
       :session-name="notifyConfigSession"
       @close="notifyConfigSession = null"
+    />
+    <ShareExpiryDialog
+      v-if="shareCustomSession"
+      :session-name="shareCustomSession"
+      @close="shareCustomSession = null"
     />
     <ApiKeyDialog
       v-if="showApiKeyDialog"

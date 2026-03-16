@@ -1,24 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 type Platform = "macos" | "linux" | "unknown";
 
+const RELEASE_BASE =
+  "https://github.com/doInfinitely/claude-cursor/releases/download/v1.0.0";
+
 const INSTALLERS: Record<
   Exclude<Platform, "unknown">,
-  { label: string; file: string; note: string }
+  { label: string; url: string; note: string }
 > = {
   macos: {
     label: "Download for macOS",
-    file: "Claude Cursor-1.0.0-arm64.dmg",
+    url: `${RELEASE_BASE}/Claude.Cursor-1.0.0-arm64.dmg`,
     note: "macOS 12+ &middot; Apple Silicon",
   },
   linux: {
     label: "Download for Linux",
-    file: "claude-cursor_1.0.0_amd64.deb",
+    url: `${RELEASE_BASE}/claude-cursor_1.0.0_amd64.deb`,
     note: "Ubuntu/Debian &middot; x86_64 (zip also available)",
   },
 };
@@ -34,6 +36,7 @@ function detectPlatform(): Platform {
 export default function DownloadPage() {
   const [platform, setPlatform] = useState<Platform>("unknown");
   const [amount, setAmount] = useState("5");
+  const [loading, setLoading] = useState<string | null>(null);
 
   useEffect(() => {
     setPlatform(detectPlatform());
@@ -43,6 +46,26 @@ export default function DownloadPage() {
   const others = (
     Object.keys(INSTALLERS) as Exclude<Platform, "unknown">[]
   ).filter((p) => p !== primary);
+
+  async function handleDownload(p: Exclude<Platform, "unknown">) {
+    setLoading(p);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: Number(amount) || 0, platform: p }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setLoading(null);
+      }
+    } catch {
+      setLoading(null);
+    }
+  }
+
 
   return (
     <>
@@ -99,23 +122,31 @@ export default function DownloadPage() {
               <p className="text-xs text-[#8a7a6a] mb-4">
                 Recommended: $5 &middot; Enter $0 for free
               </p>
-              <a
-                href={`/downloads/${INSTALLERS[primary].file}`}
-                className="inline-flex items-center gap-3 w-full justify-center px-8 py-3.5 text-sm font-semibold rounded-xl bg-[#dd5013] hover:bg-[#e87838] text-[#f8eed2] transition-colors"
+              <button
+                onClick={() => handleDownload(primary)}
+                disabled={loading !== null}
+                className="inline-flex items-center gap-3 w-full justify-center px-8 py-3.5 text-sm font-semibold rounded-xl bg-[#dd5013] hover:bg-[#e87838] text-[#f8eed2] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                </svg>
+                {loading === primary ? (
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                  </svg>
+                )}
                 {INSTALLERS[primary].label}
-              </a>
+              </button>
               <p
                 className="mt-2 text-xs text-[#8a7a6a]"
                 dangerouslySetInnerHTML={{
@@ -128,24 +159,32 @@ export default function DownloadPage() {
           {/* Other platforms */}
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
             {others.map((p) => (
-              <a
+              <button
                 key={p}
-                href={`/downloads/${INSTALLERS[p].file}`}
-                className="flex items-center gap-2 px-5 py-2.5 text-sm rounded-lg border border-[#5d3d3a] hover:border-[#7a5955] text-[#c4b898] hover:text-[#f8eed2] transition-colors"
+                onClick={() => handleDownload(p)}
+                disabled={loading !== null}
+                className="flex items-center gap-2 px-5 py-2.5 text-sm rounded-lg border border-[#5d3d3a] hover:border-[#7a5955] text-[#c4b898] hover:text-[#f8eed2] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                </svg>
+                {loading === p ? (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                  </svg>
+                )}
                 {INSTALLERS[p].label}
-              </a>
+              </button>
             ))}
           </div>
         </div>
