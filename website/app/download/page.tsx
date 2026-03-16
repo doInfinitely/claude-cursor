@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
-type Platform = "macos" | "linux" | "unknown";
+type Platform = "macos" | "linux" | "windows" | "unknown";
 
 const RELEASE_BASE =
   "https://github.com/doInfinitely/claude-cursor/releases/download/v1.0.0";
@@ -23,12 +23,18 @@ const INSTALLERS: Record<
     url: `${RELEASE_BASE}/claude-cursor_1.0.0_amd64.deb`,
     note: "Ubuntu/Debian &middot; x86_64 (zip also available)",
   },
+  windows: {
+    label: "Download for Windows (WSL2)",
+    url: `${RELEASE_BASE}/claude-cursor-1.0.0-wsl.tar.gz`,
+    note: "Windows 10/11 &middot; requires WSL2",
+  },
 };
 
 function detectPlatform(): Platform {
   if (typeof navigator === "undefined") return "unknown";
   const ua = navigator.userAgent.toLowerCase();
   if (ua.includes("mac")) return "macos";
+  if (ua.includes("win")) return "windows";
   if (ua.includes("linux")) return "linux";
   return "unknown";
 }
@@ -264,6 +270,58 @@ export default function DownloadPage() {
                 ctrl+b set mouse off
               </code>
             </div>
+          </div>
+
+          {/* Windows/WSL2 setup */}
+          <div className="mt-6 p-5 rounded-xl border border-[#5d3d3a] bg-[#3b110c]/60">
+            <h3 className="font-semibold text-[#e9e4a6] mb-2 flex items-center gap-2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <path d="M8 21h8M12 17v4" />
+              </svg>
+              Windows / WSL2
+            </h3>
+            <p className="text-sm text-[#c4b898] leading-relaxed mb-3">
+              Claude Cursor runs inside WSL2 on Windows. Follow these steps:
+            </p>
+            <ol className="space-y-2 text-sm text-[#c4b898]">
+              <li>
+                <span className="text-[#dd5013] font-semibold">1.</span>{" "}
+                Install WSL2 from PowerShell:
+                <code className="block mt-1 px-3 py-1.5 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono">
+                  wsl --install
+                </code>
+              </li>
+              <li>
+                <span className="text-[#dd5013] font-semibold">2.</span>{" "}
+                Inside WSL, install dependencies:
+                <code className="block mt-1 px-3 py-1.5 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono">
+                  sudo apt install nodejs npm ttyd tmux
+                </code>
+              </li>
+              <li>
+                <span className="text-[#dd5013] font-semibold">3.</span>{" "}
+                Extract and install:
+                <code className="block mt-1 px-3 py-1.5 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono whitespace-pre-wrap">
+                  tar xzf claude-cursor-1.0.0-wsl.tar.gz{"\n"}cd claude-cursor-1.0.0-wsl{"\n"}npm install && cd frontend && npm install
+                </code>
+              </li>
+              <li>
+                <span className="text-[#dd5013] font-semibold">4.</span>{" "}
+                Run and open the printed URL in your Windows browser:
+                <code className="block mt-1 px-3 py-1.5 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono">
+                  npm run dev
+                </code>
+              </li>
+            </ol>
           </div>
 
           {/* macOS troubleshooting */}

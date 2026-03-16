@@ -18,6 +18,10 @@ const INSTALLERS: Record<string, { label: string; url: string }> = {
     label: "Linux installer",
     url: `${RELEASE_BASE}/claude-cursor_1.0.0_amd64.deb`,
   },
+  windows: {
+    label: "Windows/WSL2 archive",
+    url: `${RELEASE_BASE}/claude-cursor-1.0.0-wsl.tar.gz`,
+  },
 };
 
 function SuccessContent() {
