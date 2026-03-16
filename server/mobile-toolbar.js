@@ -7,6 +7,7 @@
 module.exports = `
 (function() {
   if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
+  if (navigator.userAgent.indexOf('ClaudeCursorCompanion') >= 0) return;
 
   // ─── Text Overlay: WebSocket intercept + VT parser ───
   var OrigWS = window.WebSocket;

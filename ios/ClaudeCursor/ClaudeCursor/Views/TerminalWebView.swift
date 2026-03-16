@@ -53,7 +53,7 @@ struct TerminalWebView: UIViewRepresentable {
     class Coordinator: NSObject, WKNavigationDelegate {
         var currentSession: String?
 
-        /// Modifier handler + touch selection JS injected after page load
+        /// Modifier handler JS injected after page load
         private static let setupJS = """
         (function(){
             if(window._appSetup) return;
@@ -76,51 +76,6 @@ struct TerminalWebView: UIViewRepresentable {
                     }
                 }
             },true);
-
-            /* Touch selection: long-press + drag to select, auto-copy on release */
-            var screen=document.querySelector('.xterm-screen');
-            if(screen){
-                var timer=null, selecting=false, origin=null;
-                screen.addEventListener('touchstart',function(e){
-                    if(e.touches.length!==1) return;
-                    var t=e.touches[0];
-                    origin={x:t.clientX,y:t.clientY};
-                    timer=setTimeout(function(){
-                        selecting=true;
-                        screen.dispatchEvent(new MouseEvent('mousedown',{
-                            clientX:t.clientX,clientY:t.clientY,button:0,bubbles:true
-                        }));
-                    },500);
-                });
-                screen.addEventListener('touchmove',function(e){
-                    if(timer&&origin){
-                        var dx=e.touches[0].clientX-origin.x,dy=e.touches[0].clientY-origin.y;
-                        if(Math.sqrt(dx*dx+dy*dy)>10){clearTimeout(timer);timer=null;}
-                    }
-                    if(selecting&&e.touches.length===1){
-                        e.preventDefault();
-                        screen.dispatchEvent(new MouseEvent('mousemove',{
-                            clientX:e.touches[0].clientX,clientY:e.touches[0].clientY,
-                            button:0,bubbles:true
-                        }));
-                    }
-                },{passive:false});
-                screen.addEventListener('touchend',function(){
-                    clearTimeout(timer);timer=null;
-                    if(selecting){
-                        screen.dispatchEvent(new MouseEvent('mouseup',{button:0,bubbles:true}));
-                        selecting=false;
-                        if(window.term&&window.term.hasSelection&&window.term.hasSelection()){
-                            navigator.clipboard.writeText(window.term.getSelection()).catch(function(){});
-                        }
-                    }
-                });
-            }
-
-            /* Selection highlight color */
-            var s=document.createElement('style');
-            s.textContent='.xterm .xterm-selection div{background-color:rgba(189,183,252,0.3)!important;}';
-            document.head.appendChild(s);
         })();
         """
 

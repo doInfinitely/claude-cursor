@@ -3,7 +3,7 @@ import Foundation
 enum APIError: LocalizedError {
     case invalidURL
     case httpError(Int, url: String)
-    case decodingError
+    case decodingError(String)
 
     var errorDescription: String? {
         switch self {
@@ -11,17 +11,24 @@ enum APIError: LocalizedError {
             return "Invalid URL"
         case .httpError(let code, let url):
             return "HTTP \(code): \(url)"
-        case .decodingError:
-            return "Failed to decode response"
+        case .decodingError(let detail):
+            return "Decode error: \(detail)"
         }
     }
 }
 
 actor APIClient {
     let baseURL: String
+    private let session: URLSession
 
     init(baseURL: URL) {
         self.baseURL = baseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let config = URLSessionConfiguration.default
+        // Use a browser-like User-Agent so Cloudflare Tunnel doesn't reject requests
+        config.httpAdditionalHeaders = [
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1 ClaudeCursorCompanion/1.0"
+        ]
+        self.session = URLSession(configuration: config)
     }
 
     private func url(_ path: String) -> URL? {
@@ -36,14 +43,20 @@ actor APIClient {
             req.httpBody = body
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidURL }
         guard (200...299).contains(http.statusCode) else {
-            throw APIError.httpError(http.statusCode, url: url.absoluteString)
+            let preview = String(data: data, encoding: .utf8)?.prefix(200) ?? ""
+            throw APIError.httpError(http.statusCode, url: "\(url.absoluteString) | \(preview)")
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode(T.self, from: data)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            let preview = String(data: data, encoding: .utf8)?.prefix(300) ?? ""
+            throw APIError.decodingError("\(error.localizedDescription) | \(preview)")
+        }
     }
 
     private func requestVoid(_ method: String, path: String, body: Data? = nil) async throws {
@@ -54,10 +67,11 @@ actor APIClient {
             req.httpBody = body
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
-        let (_, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidURL }
         guard (200...299).contains(http.statusCode) else {
-            throw APIError.httpError(http.statusCode, url: url.absoluteString)
+            let preview = String(data: data, encoding: .utf8)?.prefix(200) ?? ""
+            throw APIError.httpError(http.statusCode, url: "\(url.absoluteString) | \(preview)")
         }
     }
 
