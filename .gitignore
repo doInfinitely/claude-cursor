@@ -3,6 +3,8 @@ dist/
 server/public/
 out/
 .env
+.env.*
+*.swp
 *.log
 .DS_Store
 .claude
