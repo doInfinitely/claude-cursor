@@ -68,16 +68,18 @@ struct KeyboardToolbar: View {
 
         guard let webView = TerminalWebView.sharedWebView else { return }
         let escaped = escapeForJS(sequence)
-        webView.evaluateJavaScript(
-            "if(window._wsSend){window._wsSend('\(escaped)');}else if(window.term){window.term.input('\(escaped)');}",
-            completionHandler: nil
-        )
+        let js = "try{if(typeof window._wsSend==='function'){window._wsSend('\(escaped)');}else if(window.term&&typeof window.term.input==='function'){window.term.input('\(escaped)');}}catch(e){e.message}"
+        webView.evaluateJavaScript(js) { result, error in
+            if let error = error {
+                print("[KeyboardToolbar] JS error: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func injectModifier(_ modifier: String?) {
         guard let webView = TerminalWebView.sharedWebView else { return }
         let value = modifier.map { "'\($0)'" } ?? "null"
-        webView.evaluateJavaScript("window._pendingModifier=\(value);", completionHandler: nil)
+        webView.evaluateJavaScript("window._pendingModifier=\(value);") { _, _ in }
     }
 
     private func haptic() {
