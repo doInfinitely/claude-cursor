@@ -68,14 +68,8 @@ struct KeyboardToolbar: View {
 
         guard let webView = TerminalWebView.sharedWebView else { return }
         let escaped = escapeForJS(sequence)
-        let js = "var r='none';try{if(typeof window._wsSend==='function'){window._wsSend('\(escaped)');r='wsSend';}else if(window.term&&typeof window.term.input==='function'){window.term.input('\(escaped)');r='term';}else{r='missing:_wsSend='+typeof window._wsSend+',term='+(window.term?'obj':'undef');}}catch(e){r='err:'+e.message}r"
-        webView.evaluateJavaScript(js) { result, error in
-            if let error = error {
-                print("[KeyboardToolbar] JS error: \(error.localizedDescription)")
-            } else {
-                print("[KeyboardToolbar] sent via: \(result ?? "nil")")
-            }
-        }
+        let js = "try{if(typeof window._wsSend==='function'){window._wsSend('\(escaped)');}else if(window.term&&typeof window.term.input==='function'){window.term.input('\(escaped)');}}catch(e){}"
+        webView.evaluateJavaScript(js) { _, _ in }
     }
 
     private func injectModifier(_ modifier: String?) {
