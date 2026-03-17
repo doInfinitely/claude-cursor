@@ -229,16 +229,19 @@ function handleMobileOverlayClick() {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
+  padding-left: 80px; /* space for macOS traffic lights */
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   z-index: 30; /* Desktop z-index */
   background: var(--bg-primary); /* Ensure background is opaque or semi-opaque */
+  -webkit-app-region: drag;
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  -webkit-app-region: no-drag;
 }
 
 .toggle-btn {
@@ -313,6 +316,7 @@ function handleMobileOverlayClick() {
   display: flex;
   align-items: center;
   gap: 12px;
+  -webkit-app-region: no-drag;
 }
 
 .shell-summary {
