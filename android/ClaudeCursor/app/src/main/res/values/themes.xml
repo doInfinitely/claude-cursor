@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.ClaudeCursor" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#3b110c</item>
+        <item name="android:navigationBarColor">#3b110c</item>
+        <item name="android:windowBackground">#3b110c</item>
+    </style>
+</resources>
