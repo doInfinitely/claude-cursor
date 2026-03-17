@@ -23,7 +23,7 @@ fun CreateSessionDialog(
 ) {
     val shells by viewModel.shells.collectAsStateWithLifecycle()
     var name by remember { mutableStateOf("") }
-    var selectedShellPath by remember { mutableStateOf<String?>(null) }
+    var selectedShellId by remember { mutableStateOf<String?>(null) }
     var isCreating by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -32,8 +32,8 @@ fun CreateSessionDialog(
 
     // Auto-select first shell
     LaunchedEffect(shells) {
-        if (selectedShellPath == null && shells.isNotEmpty()) {
-            selectedShellPath = shells.first().path
+        if (selectedShellId == null && shells.isNotEmpty()) {
+            selectedShellId = shells.first().id
         }
     }
 
@@ -77,7 +77,7 @@ fun CreateSessionDialog(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { selectedShellPath = shell.path }
+                                    .clickable { selectedShellId = shell.id }
                                     .padding(vertical = 8.dp, horizontal = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -90,7 +90,7 @@ fun CreateSessionDialog(
                                     )
                                     Text(shell.path, fontSize = 12.sp, color = AppColors.textTertiary)
                                 }
-                                if (selectedShellPath == shell.path) {
+                                if (selectedShellId == shell.id) {
                                     Icon(
                                         Icons.Default.Check,
                                         contentDescription = "Selected",
@@ -107,7 +107,7 @@ fun CreateSessionDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    val shell = selectedShellPath ?: return@TextButton
+                    val shell = selectedShellId ?: return@TextButton
                     isCreating = true
                     viewModel.createSession(
                         name = name.ifBlank { null },
@@ -115,7 +115,7 @@ fun CreateSessionDialog(
                     )
                     onDismiss()
                 },
-                enabled = selectedShellPath != null && !isCreating,
+                enabled = selectedShellId != null && !isCreating,
                 colors = ButtonDefaults.textButtonColors(contentColor = AppColors.accent)
             ) {
                 if (isCreating) {

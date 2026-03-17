@@ -160,7 +160,8 @@ private fun ShareView(
                     baseURL = baseURL,
                     sessionName = shareSessionName,
                     sharePath = "/s/$token/",
-                    viewModel = viewModel
+                    viewModel = viewModel,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
             KeyboardToolbar(viewModel = viewModel)
@@ -221,7 +222,8 @@ private fun FullView(
                 TerminalWebView(
                     baseURL = baseURL,
                     sessionName = selectedSession.name,
-                    viewModel = viewModel
+                    viewModel = viewModel,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
             KeyboardToolbar(viewModel = viewModel)
