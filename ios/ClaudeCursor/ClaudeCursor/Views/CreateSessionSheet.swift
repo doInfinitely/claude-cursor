@@ -126,7 +126,7 @@ struct CreateSessionSheet: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            try await apiClient.createSession(name: name.isEmpty ? nil : name, shell: shell.path)
+            try await apiClient.createSession(name: name.isEmpty ? nil : name, shell: shell.id)
             onCreated()
             dismiss()
         } catch {
