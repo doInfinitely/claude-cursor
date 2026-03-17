@@ -99,9 +99,11 @@ module.exports = `
     dirty = true;
   }
 
-  // Monkey-patch WebSocket to intercept terminal output
+  // Monkey-patch WebSocket to intercept terminal output and capture for input
+  var termWS = null;
   window.WebSocket = function(u, p) {
     var ws = p ? new OrigWS(u, p) : new OrigWS(u);
+    termWS = ws;
     ws.addEventListener('message', function(e) {
       try {
         if (e.data instanceof ArrayBuffer) {
@@ -231,13 +233,34 @@ module.exports = `
   var pickerMode = null;
   function ta() { return document.querySelector('.xterm-helper-textarea'); }
 
+  // Send raw bytes to terminal via WebSocket (ttyd protocol: 0 prefix = input)
+  var enc = new TextEncoder();
+  function wsSend(str) {
+    if (!termWS || termWS.readyState !== 1) return;
+    var data = enc.encode(str);
+    var msg = new Uint8Array(data.length + 1);
+    msg[0] = 0x30; // '0' = terminal input
+    msg.set(data, 1);
+    termWS.send(msg.buffer);
+  }
+
   function send(key, code, kc, extra) {
-    var t = ta(); if (!t) return; t.focus();
-    var o = {key:key, code:code||'', keyCode:kc||0, which:kc||0,
-      ctrlKey: !!(extra && extra.ctrl), altKey: !!(extra && extra.alt),
-      shiftKey:false, metaKey:false, bubbles:true, cancelable:true};
-    t.dispatchEvent(new KeyboardEvent('keydown', o));
-    t.dispatchEvent(new KeyboardEvent('keyup', o));
+    var t = ta(); if (t) t.focus();
+    // Map keys to raw escape sequences / control chars
+    if (extra && extra.ctrl) {
+      var c = key.toUpperCase().charCodeAt(0);
+      if (c >= 65 && c <= 90) { wsSend(String.fromCharCode(c - 64)); return; }
+    }
+    if (extra && extra.alt) { wsSend('\\x1b' + key); return; }
+    switch(key) {
+      case 'Escape': wsSend('\\x1b'); return;
+      case 'Tab': wsSend('\\t'); return;
+      case 'ArrowUp': wsSend('\\x1b[A'); return;
+      case 'ArrowDown': wsSend('\\x1b[B'); return;
+      case 'ArrowRight': wsSend('\\x1b[C'); return;
+      case 'ArrowLeft': wsSend('\\x1b[D'); return;
+    }
+    wsSend(key);
   }
 
   function showPicker(mode) {

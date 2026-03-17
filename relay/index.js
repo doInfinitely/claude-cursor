@@ -58,6 +58,13 @@ app.post('/api/revoke', (req, res) => {
   res.json({ ok: true, removed: count });
 });
 
+// API: resolve a share token (used by iOS companion app)
+app.get('/api/sessions/share/:token', (req, res) => {
+  const entry = getEntry(req.params.token);
+  if (!entry) return res.status(404).json({ error: 'Link expired or invalid' });
+  res.json({ sessionName: entry.sessionName, status: 'active' });
+});
+
 // Share page — serves minimal HTML with iframe to proxied terminal
 app.get('/s/:token', (req, res) => {
   const entry = getEntry(req.params.token);
