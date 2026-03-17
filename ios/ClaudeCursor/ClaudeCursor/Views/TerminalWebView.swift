@@ -70,9 +70,9 @@ struct TerminalWebView: UIViewRepresentable {
                 if(window.term){
                     if(mod==='ctrl'){
                         var c=e.key.toUpperCase().charCodeAt(0)-64;
-                        if(c>0&&c<27) window.term.input(String.fromCharCode(c));
+                        if(c>0&&c<27){var ch=String.fromCharCode(c);if(window._wsSend)window._wsSend(ch);else if(window.term)window.term.input(ch);}
                     } else if(mod==='alt'){
-                        window.term.input('\\x1b'+e.key);
+                        var seq='\\x1b'+e.key;if(window._wsSend)window._wsSend(seq);else if(window.term)window.term.input(seq);
                     }
                 }
             },true);

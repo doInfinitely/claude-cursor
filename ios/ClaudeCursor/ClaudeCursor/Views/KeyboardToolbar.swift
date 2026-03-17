@@ -69,7 +69,7 @@ struct KeyboardToolbar: View {
         guard let webView = TerminalWebView.sharedWebView else { return }
         let escaped = escapeForJS(sequence)
         webView.evaluateJavaScript(
-            "if(window.term){window.term.input('\(escaped)');window.term.focus();}",
+            "if(window._wsSend){window._wsSend('\(escaped)');}else if(window.term){window.term.input('\(escaped)');}",
             completionHandler: nil
         )
     }
