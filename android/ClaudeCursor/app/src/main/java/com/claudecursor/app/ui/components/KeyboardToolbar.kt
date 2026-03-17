@@ -34,16 +34,18 @@ fun KeyboardToolbar(
     val context = LocalContext.current
 
     fun haptic() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vm = context.getSystemService(VibratorManager::class.java)
-            vm?.defaultVibrator?.vibrate(VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE))
-        } else {
-            @Suppress("DEPRECATION")
-            val v = context.getSystemService(Vibrator::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                v?.vibrate(VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE))
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = context.getSystemService(VibratorManager::class.java)
+                vm?.defaultVibrator?.vibrate(VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                val v = context.getSystemService(Vibrator::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    v?.vibrate(VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE))
+                }
             }
-        }
+        } catch (_: Exception) {}
     }
 
     fun escapeForJS(s: String): String {
@@ -68,7 +70,8 @@ fun KeyboardToolbar(
         val webView = viewModel.webView ?: return
         val escaped = escapeForJS(sequence)
         webView.evaluateJavascript(
-            "if(window.term){window.term.input('$escaped');window.term.focus();}",
+            "console.log('[app] sendKey: _wsSend='+(typeof window._wsSend)+' term='+(typeof window.term));" +
+            "try{if(typeof window._wsSend==='function'){window._wsSend('$escaped');}else if(window.term){window.term._core.coreService.triggerDataEvent('$escaped');}}catch(e){console.log('[app] sendKey error:'+e);}",
             null
         )
     }
