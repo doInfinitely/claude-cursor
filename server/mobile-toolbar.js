@@ -7,9 +7,9 @@
 module.exports = `
 (function() {
   if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
-  if (navigator.userAgent.indexOf('ClaudeCursorCompanion') >= 0) return;
+  var isCompanion = navigator.userAgent.indexOf('ClaudeCursorCompanion') >= 0;
 
-  // ─── Text Overlay: WebSocket intercept + VT parser ───
+  // ─── WebSocket intercept (needed by both companion app and mobile toolbar) ───
   var OrigWS = window.WebSocket;
   var dec = new TextDecoder();
   var tC = 80, tR = 24, cR = 0, cC = 0;
@@ -122,6 +122,17 @@ module.exports = `
   window.WebSocket.CLOSING = OrigWS.CLOSING;
   window.WebSocket.CLOSED = OrigWS.CLOSED;
 
+  // Send input to terminal via WebSocket (ttyd protocol: '0' prefix = input)
+  function wsSend(str) {
+    if (!termWS || termWS.readyState !== 1) return;
+    termWS.send('0' + str);
+  }
+  // Expose globally for iOS companion app
+  window._wsSend = wsSend;
+
+  // Companion app has its own native UI — only need WebSocket capture
+  if (isCompanion) return;
+
   function createOverlay() {
     var screen = document.querySelector('.xterm-screen');
     if (!screen || overlay) return;
@@ -232,12 +243,6 @@ module.exports = `
 
   var pickerMode = null;
   function ta() { return document.querySelector('.xterm-helper-textarea'); }
-
-  // Send input to terminal via WebSocket (ttyd protocol: '0' prefix = input)
-  function wsSend(str) {
-    if (!termWS || termWS.readyState !== 1) return;
-    termWS.send('0' + str);
-  }
 
   function send(key, code, kc, extra) {
     var t = ta(); if (t) t.focus();
