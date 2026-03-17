@@ -233,15 +233,10 @@ module.exports = `
   var pickerMode = null;
   function ta() { return document.querySelector('.xterm-helper-textarea'); }
 
-  // Send raw bytes to terminal via WebSocket (ttyd protocol: 0 prefix = input)
-  var enc = new TextEncoder();
+  // Send input to terminal via WebSocket (ttyd protocol: '0' prefix = input)
   function wsSend(str) {
     if (!termWS || termWS.readyState !== 1) return;
-    var data = enc.encode(str);
-    var msg = new Uint8Array(data.length + 1);
-    msg[0] = 0x30; // '0' = terminal input
-    msg.set(data, 1);
-    termWS.send(msg.buffer);
+    termWS.send('0' + str);
   }
 
   function send(key, code, kc, extra) {
