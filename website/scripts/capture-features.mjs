@@ -116,7 +116,7 @@ async function recordChrome(outPath, durationSecs) {
       "-y",
       "-f", "avfoundation",
       "-framerate", "30",
-      "-capture_cursor", "1",
+      "-capture_cursor", "0",
       "-i", "6:none",
       "-t", String(durationSecs),
       "-vf", `crop=${w}:${h}:${cropX}:${cropY}`,
