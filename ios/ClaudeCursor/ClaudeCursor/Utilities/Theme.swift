@@ -12,6 +12,8 @@ enum Theme {
     static let border       = Color.white.opacity(0.12)
     static let statusGreen  = Color(hex: "#4ade80")
     static let statusYellow = Color(hex: "#facc15")
+    static let statusRed    = Color(hex: "#dc2626")
+    static let statusAmber  = Color(hex: "#d97706")
 }
 
 extension Color {

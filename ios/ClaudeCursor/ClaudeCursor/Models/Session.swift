@@ -7,10 +7,25 @@ struct Session: Codable, Identifiable, Hashable {
     let port: Int?
     let pid: Int?
     let createdAt: String?
+    let needsAction: Bool?
+    let actionType: String?
+    let needsActionSnippet: String?
+    let confidence: Double?
+    let description: String?
 
     var id: String { name }
 
     var isRunning: Bool { status == "running" }
+
+    var actionRank: Int {
+        guard needsAction == true else { return 10 }
+        switch actionType {
+        case "approval": return 0
+        case "completed": return 1
+        case "prompt": return 2
+        default: return 3
+        }
+    }
 }
 
 struct SessionsResponse: Codable {

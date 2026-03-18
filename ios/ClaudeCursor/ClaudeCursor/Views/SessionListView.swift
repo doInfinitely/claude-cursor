@@ -232,7 +232,11 @@ struct SessionListView: View {
                    let match = fetched.first(where: { $0.name == initial }) {
                     selectedSession = match
                 } else {
-                    selectedSession = fetched.first(where: { $0.isRunning }) ?? fetched.first
+                    selectedSession = fetched.sorted { a, b in
+                    if a.actionRank != b.actionRank { return a.actionRank < b.actionRank }
+                    if a.isRunning != b.isRunning { return a.isRunning }
+                    return false
+                }.first
                 }
             }
         } catch {

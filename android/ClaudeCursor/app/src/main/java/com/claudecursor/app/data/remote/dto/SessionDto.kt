@@ -9,7 +9,12 @@ data class SessionDto(
     val shell: String? = null,
     val port: Int? = null,
     val pid: Int? = null,
-    @SerializedName("created_at") val createdAt: String? = null
+    @SerializedName("created_at") val createdAt: String? = null,
+    val needsAction: Boolean = false,
+    val actionType: String? = null,
+    val needsActionSnippet: String? = null,
+    val confidence: Double? = null,
+    val description: String? = null
 ) {
     fun toDomain(): Session = Session(
         name = name,
@@ -17,7 +22,12 @@ data class SessionDto(
         shell = shell,
         port = port,
         pid = pid,
-        createdAt = createdAt
+        createdAt = createdAt,
+        needsAction = needsAction,
+        actionType = actionType,
+        needsActionSnippet = needsActionSnippet,
+        confidence = confidence,
+        description = description
     )
 }
 
