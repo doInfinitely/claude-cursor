@@ -98,7 +98,7 @@ class SessionListViewModel(application: Application) : AndroidViewModel(applicat
                 _selectedSession.value = if (initial != null) {
                     fetched.firstOrNull { it.name == initial }
                 } else {
-                    fetched.firstOrNull { it.isRunning } ?: fetched.firstOrNull()
+                    fetched.sortedWith(compareBy<Session> { it.actionRank }.thenByDescending { it.isRunning }).firstOrNull()
                 }
             }
         } catch (e: Exception) {
