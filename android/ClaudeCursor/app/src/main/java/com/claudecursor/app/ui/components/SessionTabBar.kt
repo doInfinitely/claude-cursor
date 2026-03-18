@@ -1,5 +1,6 @@
 package com.claudecursor.app.ui.components
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,10 +15,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,6 +38,10 @@ fun SessionTabBar(
     onCreateTapped: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val sortedSessions = remember(sessions) {
+        sessions.sortedWith(compareBy<Session> { it.actionRank }.thenByDescending { it.isRunning })
+    }
+
     Column(modifier = modifier) {
         LazyRow(
             modifier = Modifier
@@ -43,7 +52,7 @@ fun SessionTabBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            items(sessions, key = { it.name }) { session ->
+            items(sortedSessions, key = { it.name }) { session ->
                 SessionPill(
                     session = session,
                     isSelected = selected?.name == session.name,
@@ -104,20 +113,7 @@ private fun SessionPill(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Status dot
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(
-                    if (session.isRunning) AppColors.statusYellow else AppColors.textTertiary
-                )
-                .then(
-                    if (session.isRunning) {
-                        Modifier.shadow(3.dp, CircleShape, ambientColor = AppColors.statusYellow.copy(alpha = 0.6f))
-                    } else Modifier
-                )
-        )
+        StatusDot(session)
 
         Text(
             text = session.name,
@@ -128,4 +124,63 @@ private fun SessionPill(
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+@Composable
+private fun StatusDot(session: Session) {
+    val dotColor = if (session.needsAction) {
+        when (session.actionType) {
+            "approval" -> AppColors.statusRed
+            "completed" -> AppColors.statusGreen
+            "prompt" -> AppColors.statusAmber
+            else -> AppColors.statusYellow
+        }
+    } else {
+        if (session.isRunning) AppColors.statusYellow else AppColors.textTertiary
+    }
+
+    val shouldPulse = session.needsAction && (session.actionType == "approval" || session.actionType == "prompt")
+    val pulseDuration = if (session.actionType == "approval") 1500 else 2000
+
+    val pulseAlpha by if (shouldPulse) {
+        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+        infiniteTransition.animateFloat(
+            initialValue = 0.4f,
+            targetValue = 0.8f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(pulseDuration, easing = EaseInOut),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulseAlpha"
+        )
+    } else {
+        remember { mutableStateOf(0.4f) }
+    }
+
+    val pulseRadius by if (shouldPulse) {
+        val infiniteTransition = rememberInfiniteTransition(label = "pulseRadius")
+        infiniteTransition.animateFloat(
+            initialValue = 3f,
+            targetValue = 6f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(pulseDuration, easing = EaseInOut),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulseRadius"
+        )
+    } else {
+        remember { mutableStateOf(3f) }
+    }
+
+    Box(
+        modifier = Modifier
+            .size(6.dp)
+            .clip(CircleShape)
+            .background(dotColor)
+            .shadow(
+                pulseRadius.dp,
+                CircleShape,
+                ambientColor = dotColor.copy(alpha = pulseAlpha)
+            )
+    )
 }

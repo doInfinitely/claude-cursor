@@ -5,10 +5,18 @@ struct SessionTabBar: View {
     @Binding var selected: Session?
     var onCreateTapped: () -> Void
 
+    private var sortedSessions: [Session] {
+        sessions.sorted { a, b in
+            if a.actionRank != b.actionRank { return a.actionRank < b.actionRank }
+            if a.isRunning != b.isRunning { return a.isRunning }
+            return false
+        }
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(sessions) { session in
+                ForEach(sortedSessions) { session in
                     sessionPill(session)
                 }
 
@@ -41,10 +49,7 @@ struct SessionTabBar: View {
             selected = session
         } label: {
             HStack(spacing: 6) {
-                Circle()
-                    .fill(session.isRunning ? Theme.statusYellow : Theme.textTertiary)
-                    .frame(width: 6, height: 6)
-                    .shadow(color: session.isRunning ? Theme.statusYellow.opacity(0.6) : .clear, radius: 3)
+                StatusDot(session: session)
 
                 Text(session.name)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
@@ -61,5 +66,40 @@ struct SessionTabBar: View {
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct StatusDot: View {
+    let session: Session
+    @State private var pulsing = false
+
+    private var dotColor: Color {
+        guard session.needsAction == true else {
+            return session.isRunning ? Theme.statusYellow : Theme.textTertiary
+        }
+        switch session.actionType {
+        case "approval": return Theme.statusRed
+        case "completed": return Theme.statusGreen
+        case "prompt": return Theme.statusAmber
+        default: return Theme.statusYellow
+        }
+    }
+
+    private var shouldPulse: Bool {
+        session.needsAction == true && (session.actionType == "approval" || session.actionType == "prompt")
+    }
+
+    var body: some View {
+        Circle()
+            .fill(dotColor)
+            .frame(width: 6, height: 6)
+            .shadow(color: dotColor.opacity(pulsing ? 0.8 : 0.4), radius: pulsing ? 6 : 3)
+            .animation(shouldPulse ? .easeInOut(duration: session.actionType == "approval" ? 1.5 : 2).repeatForever(autoreverses: true) : .default, value: pulsing)
+            .onAppear {
+                if shouldPulse { pulsing = true }
+            }
+            .onChange(of: session.needsAction) { _ in
+                pulsing = shouldPulse
+            }
     }
 }

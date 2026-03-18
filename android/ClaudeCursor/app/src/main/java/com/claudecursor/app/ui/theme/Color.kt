@@ -14,4 +14,6 @@ object AppColors {
     val border = Color.White.copy(alpha = 0.12f)
     val statusGreen = Color(0xFF4ADE80)
     val statusYellow = Color(0xFFFACC15)
+    val statusRed = Color(0xFFDC2626)
+    val statusAmber = Color(0xFFD97706)
 }
