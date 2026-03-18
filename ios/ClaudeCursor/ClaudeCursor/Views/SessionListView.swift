@@ -106,7 +106,10 @@ struct SessionListView: View {
             SessionTabBar(
                 sessions: sessions,
                 selected: $selectedSession,
-                onCreateTapped: { showingCreateSheet = true }
+                onCreateTapped: { showingCreateSheet = true },
+                onFlagToggle: { name in
+                    Task { await toggleFlag(name) }
+                }
             )
 
             if let session = selectedSession, session.isRunning, let url = server.baseURL {
@@ -258,6 +261,16 @@ struct SessionListView: View {
         guard let client = apiClient else { return }
         do {
             try await client.restartSession(name: name)
+            await loadSessions()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func toggleFlag(_ name: String) async {
+        guard let client = apiClient else { return }
+        do {
+            try await client.toggleFlag(name: name)
             await loadSessions()
         } catch {
             errorMessage = error.localizedDescription

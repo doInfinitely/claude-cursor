@@ -214,7 +214,8 @@ private fun FullView(
             sessions = sessions,
             selected = selectedSession,
             onSessionSelected = onSessionSelected,
-            onCreateTapped = onCreateTapped
+            onCreateTapped = onCreateTapped,
+            onFlagToggle = { name -> viewModel.toggleFlag(name) }
         )
 
         if (selectedSession != null && selectedSession.isRunning && baseURL != null) {

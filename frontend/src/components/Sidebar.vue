@@ -11,7 +11,7 @@ defineProps({
 const emit = defineEmits(["create", "configure-notify", "share-custom"]);
 const store = useSessionStore();
 
-const ACTION_PRIORITY = { approval: 0, completed: 1, prompt: 2 };
+const ACTION_PRIORITY = { approval: 0, completed: 1, prompt: 2, flagged: 3 };
 
 function actionRank(session) {
   if (!session.needsAction) return 10;

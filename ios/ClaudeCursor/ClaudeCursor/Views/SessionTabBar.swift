@@ -4,6 +4,7 @@ struct SessionTabBar: View {
     let sessions: [Session]
     @Binding var selected: Session?
     var onCreateTapped: () -> Void
+    var onFlagToggle: ((String) -> Void)?
 
     private var sortedSessions: [Session] {
         sessions.sorted { a, b in
@@ -50,6 +51,9 @@ struct SessionTabBar: View {
         } label: {
             HStack(spacing: 6) {
                 StatusDot(session: session)
+                    .onTapGesture {
+                        onFlagToggle?(session.name)
+                    }
 
                 Text(session.name)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
@@ -81,12 +85,13 @@ private struct StatusDot: View {
         case "approval": return Theme.statusRed
         case "completed": return Theme.statusGreen
         case "prompt": return Theme.statusAmber
+        case "flagged": return Theme.statusRed
         default: return Theme.statusYellow
         }
     }
 
     private var shouldPulse: Bool {
-        session.needsAction == true && (session.actionType == "approval" || session.actionType == "prompt")
+        session.needsAction == true && (session.actionType == "approval" || session.actionType == "prompt") && session.actionType != "flagged"
     }
 
     var body: some View {

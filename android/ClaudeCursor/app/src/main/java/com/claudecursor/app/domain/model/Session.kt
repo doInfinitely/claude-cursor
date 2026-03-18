@@ -19,6 +19,7 @@ data class Session(
         "approval" -> 0
         "completed" -> 1
         "prompt" -> 2
-        else -> 3
+        "flagged" -> 3
+        else -> 4
     }
 }

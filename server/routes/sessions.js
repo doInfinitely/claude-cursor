@@ -54,6 +54,15 @@ module.exports = function (sessionManager, { notifier, shareTokens, tunnel } = {
     }
   });
 
+  router.post('/:name/flag', (req, res) => {
+    try {
+      const session = sessionManager.toggleFlag(req.params.name);
+      res.json(session);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   // Notification routing
   router.put('/:name/notify', (req, res) => {
     try {

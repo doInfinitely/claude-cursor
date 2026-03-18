@@ -33,6 +33,9 @@ interface ApiService {
     @DELETE("/api/sessions/{name}")
     suspend fun deleteSession(@Path("name") name: String)
 
+    @POST("/api/sessions/{name}/flag")
+    suspend fun toggleFlag(@Path("name") name: String)
+
     @GET("/api/sessions/share/{token}")
     suspend fun resolveShareToken(@Path("token") token: String): ShareInfoDto
 }
@@ -86,6 +89,10 @@ object ApiClient {
 
     suspend fun deleteSession(baseURL: String, name: String) {
         getService(baseURL).deleteSession(name)
+    }
+
+    suspend fun toggleFlag(baseURL: String, name: String) {
+        getService(baseURL).toggleFlag(name)
     }
 
     suspend fun resolveShareToken(baseURL: String, token: String): ShareInfoDto {

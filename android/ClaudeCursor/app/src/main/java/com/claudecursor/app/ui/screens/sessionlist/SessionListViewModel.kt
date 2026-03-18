@@ -155,6 +155,18 @@ class SessionListViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    fun toggleFlag(name: String) {
+        val baseURL = _server.value?.baseURL ?: return
+        viewModelScope.launch {
+            try {
+                ApiClient.toggleFlag(baseURL, name)
+                _server.value?.let { loadSessions(it) }
+            } catch (e: Exception) {
+                _error.value = e.message
+            }
+        }
+    }
+
     fun loadShells() {
         val baseURL = _server.value?.baseURL ?: return
         viewModelScope.launch {

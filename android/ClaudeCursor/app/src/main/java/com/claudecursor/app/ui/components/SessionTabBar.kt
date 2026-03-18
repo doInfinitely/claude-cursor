@@ -36,6 +36,7 @@ fun SessionTabBar(
     selected: Session?,
     onSessionSelected: (Session) -> Unit,
     onCreateTapped: () -> Unit,
+    onFlagToggle: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val sortedSessions = remember(sessions) {
@@ -56,7 +57,8 @@ fun SessionTabBar(
                 SessionPill(
                     session = session,
                     isSelected = selected?.name == session.name,
-                    onClick = { onSessionSelected(session) }
+                    onClick = { onSessionSelected(session) },
+                    onFlagToggle = { onFlagToggle?.invoke(session.name) }
                 )
             }
 
@@ -92,7 +94,8 @@ fun SessionTabBar(
 private fun SessionPill(
     session: Session,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onFlagToggle: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -113,7 +116,7 @@ private fun SessionPill(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        StatusDot(session)
+        StatusDot(session, onFlagToggle = onFlagToggle)
 
         Text(
             text = session.name,
@@ -127,19 +130,20 @@ private fun SessionPill(
 }
 
 @Composable
-private fun StatusDot(session: Session) {
+private fun StatusDot(session: Session, onFlagToggle: () -> Unit = {}) {
     val dotColor = if (session.needsAction) {
         when (session.actionType) {
             "approval" -> AppColors.statusRed
             "completed" -> AppColors.statusGreen
             "prompt" -> AppColors.statusAmber
+            "flagged" -> AppColors.statusRed
             else -> AppColors.statusYellow
         }
     } else {
         if (session.isRunning) AppColors.statusYellow else AppColors.textTertiary
     }
 
-    val shouldPulse = session.needsAction && (session.actionType == "approval" || session.actionType == "prompt")
+    val shouldPulse = session.needsAction && (session.actionType == "approval" || session.actionType == "prompt") && session.actionType != "flagged"
     val pulseDuration = if (session.actionType == "approval") 1500 else 2000
 
     val pulseAlpha by if (shouldPulse) {
@@ -177,6 +181,7 @@ private fun StatusDot(session: Session) {
             .size(6.dp)
             .clip(CircleShape)
             .background(dotColor)
+            .clickable { onFlagToggle() }
             .shadow(
                 pulseRadius.dp,
                 CircleShape,

@@ -187,6 +187,15 @@ export const useSessionStore = defineStore('sessions', () => {
   }
 
 
+  async function toggleFlag(name) {
+    const res = await fetch(`/api/sessions/${name}/flag`, { method: 'POST' })
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.error)
+    }
+    await fetchSessions()
+  }
+
   async function removeNotifyConfig(name) {
     const res = await fetch(`/api/sessions/${name}/notify`, { method: 'DELETE' })
     if (!res.ok) {
@@ -214,6 +223,7 @@ export const useSessionStore = defineStore('sessions', () => {
     updateNotifyConfig,
     removeNotifyConfig,
     shareSession,
+    toggleFlag,
     fetchTunnelStatus,
     setBaseUrl,
     fetchApiKeyStatus,

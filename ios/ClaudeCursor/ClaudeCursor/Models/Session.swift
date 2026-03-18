@@ -23,7 +23,8 @@ struct Session: Codable, Identifiable, Hashable {
         case "approval": return 0
         case "completed": return 1
         case "prompt": return 2
-        default: return 3
+        case "flagged": return 3
+        default: return 4
         }
     }
 }

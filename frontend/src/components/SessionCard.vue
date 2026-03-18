@@ -92,7 +92,7 @@ function onNotifyClick(e) {
     :class="{ active, collapsed }"
     :title="session.name"
   >
-    <div class="status-indicator" :class="[session.status, session.needsAction && `action-${session.actionType || 'prompt'}`]"></div>
+    <div class="status-indicator" :class="[session.status, session.needsAction && `action-${session.actionType || 'prompt'}`]" @click.stop="store.toggleFlag(session.name)"></div>
 
     <div class="card-content" v-show="!collapsed">
       <div class="card-top">
@@ -196,6 +196,13 @@ function onNotifyClick(e) {
   border-radius: 50%;
   background: var(--text-tertiary);
   flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* Flagged — red, static (no pulse) */
+.status-indicator.action-flagged {
+  background: #dc2626;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
 }
 
 .status-indicator.running {
