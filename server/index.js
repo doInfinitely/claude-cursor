@@ -25,12 +25,17 @@ function persistEnvVar(key, value) {
   let content = '';
   try { content = fs.readFileSync(envPath, 'utf-8'); } catch { /* new file */ }
 
-  const re = new RegExp(`^${key}=.*$`, 'm');
-  const line = `${key}=${value}`;
-  if (re.test(content)) {
-    content = content.replace(re, line);
+  const re = new RegExp(`^${key}=.*\n?`, 'm');
+  if (!value) {
+    // Remove the line entirely
+    content = content.replace(re, '');
   } else {
-    content = content.trimEnd() + '\n' + line + '\n';
+    const line = `${key}=${value}`;
+    if (re.test(content)) {
+      content = content.replace(re, line + '\n');
+    } else {
+      content = content.trimEnd() + '\n' + line + '\n';
+    }
   }
   fs.mkdirSync(path.dirname(envPath), { recursive: true });
   fs.writeFileSync(envPath, content);
@@ -336,9 +341,7 @@ async function createApp(portStart, portEnd) {
       persistEnvVar('BASE_URL', url);
     } else {
       userUrlOverride = false;
-      // Reset: prefer tunnel URL, then localhost
-      const fallback = tunnel.getUrl() || '';
-      notifier.setBaseUrl(fallback);
+      notifier.setBaseUrl('');
       delete process.env.BASE_URL;
       // Remove BASE_URL from .env
       persistEnvVar('BASE_URL', '');
