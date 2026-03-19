@@ -1,5 +1,8 @@
 package com.claudecursor.app.ui.screens.sessionlist
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -96,6 +100,7 @@ fun SessionListScreen(
                                 tint = AppColors.accent
                             )
                         }
+                        val context = LocalContext.current
                         SessionMenu(
                             expanded = showMenu,
                             session = selectedSession,
@@ -103,7 +108,14 @@ fun SessionListScreen(
                             onStop = { selectedSession?.let { viewModel.stopSession(it.name) }; showMenu = false },
                             onRestart = { selectedSession?.let { viewModel.restartSession(it.name) }; showMenu = false },
                             onDelete = { selectedSession?.let { viewModel.deleteSession(it.name) }; showMenu = false },
-                            onCreate = { showCreateDialog = true; showMenu = false }
+                            onCreate = { showCreateDialog = true; showMenu = false },
+                            onCopyUrl = {
+                                server?.baseURL?.let { url ->
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("Server URL", url))
+                                }
+                                showMenu = false
+                            }
                         )
                     }
                 }
@@ -324,7 +336,8 @@ private fun SessionMenu(
     onStop: () -> Unit,
     onRestart: () -> Unit,
     onDelete: () -> Unit,
-    onCreate: () -> Unit
+    onCreate: () -> Unit,
+    onCopyUrl: () -> Unit
 ) {
     DropdownMenu(
         expanded = expanded,
@@ -353,6 +366,11 @@ private fun SessionMenu(
             )
             HorizontalDivider(color = AppColors.border)
         }
+        DropdownMenuItem(
+            text = { Text("Copy URL", color = AppColors.textPrimary) },
+            onClick = onCopyUrl,
+            leadingIcon = { Icon(Icons.Default.ContentCopy, null, tint = AppColors.textSecondary) }
+        )
         DropdownMenuItem(
             text = { Text("New Session", color = AppColors.textPrimary) },
             onClick = onCreate,

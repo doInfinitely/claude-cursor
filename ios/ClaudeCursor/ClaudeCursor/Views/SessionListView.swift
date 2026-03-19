@@ -142,6 +142,11 @@ struct SessionListView: View {
                 }
             }
             Divider()
+            if let url = server.baseURL {
+                Button("Copy URL", systemImage: "doc.on.doc") {
+                    UIPasteboard.general.string = url.absoluteString
+                }
+            }
             Button("New Session", systemImage: "plus") {
                 showingCreateSheet = true
             }
