@@ -513,6 +513,9 @@ class SessionManager extends EventEmitter {
     const session = this.sessions.get(name);
     if (!session || session.status !== 'running') return;
 
+    // Don't let the monitor override a manually-flagged session
+    if (session.actionType === 'flagged') return;
+
     const changed = session.needsAction !== needsAction
       || session.actionType !== (actionType || null);
     session.needsAction = needsAction;
