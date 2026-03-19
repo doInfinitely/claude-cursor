@@ -332,7 +332,7 @@ async function createApp(portStart, portEnd) {
 
   let userUrlOverride = !!process.env.BASE_URL;
 
-  app.post('/api/tunnel/set-url', (req, res) => {
+  app.post('/api/tunnel/set-url', async (req, res) => {
     const { url } = req.body;
     if (url) {
       userUrlOverride = true;
@@ -341,10 +341,14 @@ async function createApp(portStart, portEnd) {
       persistEnvVar('BASE_URL', url);
     } else {
       userUrlOverride = false;
-      notifier.setBaseUrl('');
       delete process.env.BASE_URL;
-      // Remove BASE_URL from .env
       persistEnvVar('BASE_URL', '');
+      // Restart tunnel to get a new URL
+      const addr = server.address();
+      const newUrl = await tunnel.restart(addr.port);
+      notifier.setBaseUrl(newUrl || '');
+      res.json({ baseUrl: notifier.baseUrl });
+      return;
     }
     res.json({ baseUrl: notifier.baseUrl });
   });
