@@ -1,5 +1,7 @@
 package com.claudecursor.app.ui.components
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -128,6 +130,18 @@ fun KeyboardToolbar(
             KeyButton("\u2193") { sendKey("\u001b[B") }
             KeyButton("\u2191") { sendKey("\u001b[A") }
             KeyButton("\u2192") { sendKey("\u001b[C") }
+
+            ToolbarDivider()
+
+            KeyButton("Pst") {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
+                if (!text.isNullOrEmpty()) {
+                    sendKey(text)
+                } else {
+                    haptic()
+                }
+            }
         }
     }
 }
