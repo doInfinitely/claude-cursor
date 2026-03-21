@@ -74,6 +74,7 @@ const SlackBot = require('./services/slack-bot');
 const TunnelService = require('./services/tunnel');
 const sessionsRoute = require('./routes/sessions');
 const ShareTokenStore = require('./services/share-tokens');
+const RemoteServers = require('./services/remote-servers');
 const setupWebSocket = require('./ws');
 
 async function createApp(portStart, portEnd) {
@@ -227,6 +228,95 @@ async function createApp(portStart, portEnd) {
 
   // API routes
   app.use('/api/sessions', sessionsRoute(sessionManager, { notifier, shareTokens, tunnel }));
+
+  // Remote servers
+  const remoteServers = new RemoteServers();
+
+  app.get('/api/remote-servers', (req, res) => {
+    res.json({ servers: remoteServers.list() });
+  });
+
+  app.post('/api/remote-servers', async (req, res) => {
+    try {
+      const { url, label } = req.body;
+      if (!url) return res.status(400).json({ error: 'url is required' });
+
+      const parsed = remoteServers.parseUrl(url);
+
+      // Validate by fetching from the remote
+      if (parsed.type === 'share') {
+        const resp = await fetch(`${parsed.baseUrl}/api/share/${parsed.token}`);
+        if (!resp.ok) return res.status(400).json({ error: 'Invalid or expired share link' });
+      } else {
+        const resp = await fetch(`${parsed.baseUrl}/api/sessions`);
+        if (!resp.ok) return res.status(400).json({ error: 'Could not reach remote instance' });
+      }
+
+      const entry = remoteServers.add({ url, label });
+      res.status(201).json(entry);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/remote-servers/:id', (req, res) => {
+    remoteServers.remove(req.params.id);
+    res.json({ ok: true });
+  });
+
+  app.get('/api/remote-servers/:id/sessions', async (req, res) => {
+    try {
+      const remote = remoteServers.get(req.params.id);
+      if (!remote) return res.status(404).json({ error: 'Remote not found' });
+
+      if (remote.type === 'share') {
+        const resp = await fetch(`${remote.baseUrl}/api/share/${remote.token}`);
+        if (!resp.ok) return res.json({ sessions: [] });
+        const data = await resp.json();
+        res.json({
+          sessions: [{
+            name: data.sessionName,
+            status: data.status,
+            remote: true,
+            remoteId: remote.id,
+            remoteBaseUrl: remote.baseUrl,
+            terminalUrl: `${remote.baseUrl}/s/${remote.token}`,
+          }]
+        });
+      } else {
+        const resp = await fetch(`${remote.baseUrl}/api/sessions`);
+        if (!resp.ok) return res.json({ sessions: [] });
+        const data = await resp.json();
+        const sessions = (data.sessions || []).map(s => ({
+          ...s,
+          remote: true,
+          remoteId: remote.id,
+          remoteBaseUrl: remote.baseUrl,
+          terminalUrl: `${remote.baseUrl}/terminal/${encodeURIComponent(s.name)}`,
+        }));
+        res.json({ sessions });
+      }
+    } catch (err) {
+      res.json({ sessions: [] });
+    }
+  });
+
+  app.post('/api/remote-servers/:id/sessions/:name/input', async (req, res) => {
+    try {
+      const remote = remoteServers.get(req.params.id);
+      if (!remote) return res.status(404).json({ error: 'Remote not found' });
+
+      const resp = await fetch(`${remote.baseUrl}/api/sessions/${encodeURIComponent(req.params.name)}/input`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body),
+      });
+      const data = await resp.json();
+      res.status(resp.status).json(data);
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    }
+  });
 
   app.get('/api/notifications/targets', async (req, res) => {
     try {

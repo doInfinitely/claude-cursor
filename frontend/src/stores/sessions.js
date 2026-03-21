@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 export const useSessionStore = defineStore('sessions', () => {
   const sessions = ref([])
@@ -9,6 +9,53 @@ export const useSessionStore = defineStore('sessions', () => {
   let ws = null
   let reconnectTimer = null
   let reconnectDelay = 1000
+
+  // Remote servers
+  const remoteServers = ref([])
+  const remoteSessionsMap = ref({}) // { remoteId: [sessions] }
+
+  // Grid view
+  const viewMode = ref('list') // 'list' | 'grid'
+  const gridColumns = ref(2)
+
+  const remoteSessionsFlat = computed(() => {
+    const result = []
+    for (const [remoteId, sessions] of Object.entries(remoteSessionsMap.value)) {
+      for (const s of sessions) {
+        result.push(s)
+      }
+    }
+    return result
+  })
+
+  const allSessions = computed(() => {
+    const local = sessions.value.map(s => ({
+      ...s,
+      remote: false,
+      displayKey: s.name,
+      terminalUrl: s.status === 'running' ? `/terminal/${s.name}` : null,
+    }))
+    const remote = remoteSessionsFlat.value.map(s => ({
+      ...s,
+      displayKey: `${s.remoteId}:${s.name}`,
+    }))
+    return [...local, ...remote]
+  })
+
+  const currentTerminalUrl = computed(() => {
+    if (!current.value) return null
+    // Check if it's a remote compound key
+    if (current.value.includes(':')) {
+      const session = remoteSessionsFlat.value.find(
+        s => `${s.remoteId}:${s.name}` === current.value
+      )
+      return session?.terminalUrl || null
+    }
+    // Local session
+    const session = sessions.value.find(s => s.name === current.value)
+    if (!session || session.status !== 'running') return null
+    return `/terminal/${session.name}`
+  })
 
   async function fetchSessions() {
     const res = await fetch('/api/sessions')
@@ -108,6 +155,7 @@ export const useSessionStore = defineStore('sessions', () => {
     fetchSessions()
     fetchShells()
     connectWs()
+    fetchRemoteServers()
   }
 
   async function create({ command, name }) {
@@ -205,11 +253,108 @@ export const useSessionStore = defineStore('sessions', () => {
     await fetchSessions()
   }
 
+  // Remote servers
+  async function fetchRemoteServers() {
+    try {
+      const res = await fetch('/api/remote-servers')
+      const data = await res.json()
+      remoteServers.value = data.servers || []
+      await refreshRemoteSessions()
+    } catch {}
+  }
+
+  async function refreshRemoteSessions() {
+    const map = {}
+    await Promise.allSettled(
+      remoteServers.value.map(async (server) => {
+        try {
+          const res = await fetch(`/api/remote-servers/${server.id}/sessions`)
+          const data = await res.json()
+          map[server.id] = data.sessions || []
+        } catch {
+          map[server.id] = []
+        }
+      })
+    )
+    remoteSessionsMap.value = map
+  }
+
+  async function addRemoteServer(url, label) {
+    const res = await fetch('/api/remote-servers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, label })
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.error)
+    }
+    await fetchRemoteServers()
+  }
+
+  async function removeRemoteServer(id) {
+    await fetch(`/api/remote-servers/${id}`, { method: 'DELETE' })
+    // Deselect if current is from this remote
+    if (current.value && current.value.startsWith(id + ':')) {
+      current.value = null
+    }
+    await fetchRemoteServers()
+  }
+
+  // Broadcast input to all running sessions (local + remote)
+  async function broadcastInput(keys) {
+    const promises = []
+
+    // Local running sessions
+    for (const s of sessions.value) {
+      if (s.status === 'running') {
+        promises.push(
+          fetch(`/api/sessions/${encodeURIComponent(s.name)}/input`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keys })
+          }).catch(() => {})
+        )
+      }
+    }
+
+    // Remote running sessions
+    for (const s of remoteSessionsFlat.value) {
+      if (s.status === 'running') {
+        promises.push(
+          fetch(`/api/remote-servers/${s.remoteId}/sessions/${encodeURIComponent(s.name)}/input`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keys })
+          }).catch(() => {})
+        )
+      }
+    }
+
+    await Promise.allSettled(promises)
+  }
+
+  // Grid view
+  function setViewMode(mode) {
+    viewMode.value = mode
+  }
+
+  function setGridColumns(cols) {
+    gridColumns.value = cols
+  }
+
   return {
     sessions,
     shells,
     current,
     apiKeyAlert,
+    remoteServers,
+    remoteSessionsMap,
+    remoteSessionsFlat,
+    allSessions,
+    currentTerminalUrl,
+    viewMode,
+    gridColumns,
     init,
     fetchSessions,
     createSession,
@@ -227,6 +372,13 @@ export const useSessionStore = defineStore('sessions', () => {
     fetchTunnelStatus,
     setBaseUrl,
     fetchApiKeyStatus,
-    saveApiKey
+    saveApiKey,
+    fetchRemoteServers,
+    refreshRemoteSessions,
+    addRemoteServer,
+    removeRemoteServer,
+    broadcastInput,
+    setViewMode,
+    setGridColumns,
   }
 })

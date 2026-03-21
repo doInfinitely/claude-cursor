@@ -8,7 +8,7 @@ defineProps({
   mobile: Boolean,
 });
 
-const emit = defineEmits(["create", "configure-notify", "share-custom"]);
+const emit = defineEmits(["create", "configure-notify", "share-custom", "add-remote"]);
 const store = useSessionStore();
 
 const ACTION_PRIORITY = { approval: 0, completed: 1, prompt: 2, flagged: 3 };
@@ -51,27 +51,41 @@ const approvalCount = computed(() =>
         Sessions
         <span v-if="needsActionCount" class="action-badge" :class="{ urgent: approvalCount }">{{ needsActionCount }}</span>
       </h2>
-      <button
-        class="icon-btn new-session-btn"
-        @click="emit('create')"
-        title="New Session"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+      <div class="header-buttons">
+        <button
+          class="icon-btn new-session-btn"
+          @click="emit('create')"
+          title="New Session"
         >
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        <span v-show="!collapsed">New Session</span>
-      </button>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span v-show="!collapsed">New Session</span>
+        </button>
+        <button
+          class="icon-btn add-remote-btn"
+          @click="emit('add-remote')"
+          title="Add Remote"
+          v-show="!collapsed"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <div class="session-list">
@@ -90,6 +104,31 @@ const approvalCount = computed(() =>
         <p>No active sessions</p>
         <p class="sub-hint">Create one to get started</p>
       </div>
+
+      <!-- Remote server groups -->
+      <template v-for="server in store.remoteServers" :key="server.id">
+        <div class="remote-group" v-show="!collapsed">
+          <div class="remote-group-header">
+            <span class="remote-group-label">{{ server.label }}</span>
+            <button
+              class="remote-remove-btn"
+              @click.stop="store.removeRemoteServer(server.id)"
+              title="Remove remote"
+            >&#10005;</button>
+          </div>
+          <SessionCard
+            v-for="rs in (store.remoteSessionsMap[server.id] || [])"
+            :key="rs.remoteId + ':' + rs.name"
+            :session="rs"
+            :active="store.current === rs.remoteId + ':' + rs.name"
+            :collapsed="collapsed"
+            @click="store.select(rs.remoteId + ':' + rs.name)"
+          />
+          <div v-if="!(store.remoteSessionsMap[server.id] || []).length" class="remote-empty">
+            No sessions
+          </div>
+        </div>
+      </template>
     </div>
   </aside>
 </template>
@@ -194,6 +233,75 @@ const approvalCount = computed(() =>
 }
 .empty-hint .sub-hint {
   font-size: 12px;
+  opacity: 0.7;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.add-remote-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.add-remote-btn:hover {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.remote-group {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.remote-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding: 0 2px;
+}
+
+.remote-group-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+.remote-remove-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--danger);
+}
+
+.remote-empty {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  padding: 8px 4px;
   opacity: 0.7;
 }
 
