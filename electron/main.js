@@ -138,6 +138,16 @@ function createWindow(port) {
 
   mainWindow.loadURL(`http://127.0.0.1:${port}`);
 
+  // Shift+Enter broadcasts Enter to all sessions — fires even inside cross-origin iframes
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.shift && input.key === 'Enter' && input.type === 'keyDown') {
+      event.preventDefault();
+      mainWindow.webContents.executeJavaScript(
+        `window.dispatchEvent(new MessageEvent('message', { data: { type: 'broadcast-enter' } }))`
+      ).catch(() => {});
+    }
+  });
+
   // Hide instead of close — use Cmd+Q to quit
   mainWindow.on('close', (e) => {
     if (!app.isQuitting) {

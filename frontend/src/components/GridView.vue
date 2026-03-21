@@ -12,21 +12,20 @@ const runningSessions = computed(() =>
 <template>
   <div class="grid-view">
     <div class="grid-toolbar">
-      <span class="grid-label">Columns:</span>
-      <button
-        v-for="n in 4"
-        :key="n"
-        class="col-btn"
-        :class="{ active: store.gridColumns === n }"
-        @click="store.setGridColumns(n)"
-      >
-        {{ n }}
-      </button>
+      <span class="grid-label">Size:</span>
+      <input
+        type="range"
+        class="size-slider"
+        min="200"
+        max="1200"
+        :value="store.gridCellWidth"
+        @input="store.setGridCellWidth(+$event.target.value)"
+      />
     </div>
 
     <div
       class="grid-container"
-      :style="{ gridTemplateColumns: `repeat(${store.gridColumns}, 1fr)` }"
+      :style="{ gridTemplateColumns: `repeat(auto-fill, minmax(${store.gridCellWidth}px, 1fr))` }"
     >
       <div
         v-for="s in runningSessions"
@@ -66,7 +65,7 @@ const runningSessions = computed(() =>
 .grid-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-secondary);
@@ -76,31 +75,26 @@ const runningSessions = computed(() =>
 .grid-label {
   font-size: 12px;
   color: var(--text-tertiary);
-  margin-right: 4px;
+  flex-shrink: 0;
 }
 
-.col-btn {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
+.size-slider {
+  width: 140px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border-color);
+  border-radius: 2px;
+  outline: none;
   cursor: pointer;
 }
-.col-btn:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-.col-btn.active {
+.size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
   background: var(--accent-primary);
-  color: #3b110c;
-  border-color: var(--accent-primary);
+  cursor: pointer;
 }
 
 .grid-container {
@@ -109,6 +103,7 @@ const runningSessions = computed(() =>
   gap: 4px;
   padding: 4px;
   overflow: auto;
+  align-content: start;
 }
 
 .grid-cell {
@@ -118,7 +113,7 @@ const runningSessions = computed(() =>
   border-radius: var(--radius-sm);
   overflow: hidden;
   cursor: pointer;
-  min-height: 0;
+  height: 350px;
 }
 .grid-cell.active {
   border-color: var(--accent-primary);
@@ -169,7 +164,6 @@ const runningSessions = computed(() =>
   width: 100%;
   border: none;
   background: #000;
-  min-height: 200px;
 }
 
 .grid-empty {

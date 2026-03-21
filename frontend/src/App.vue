@@ -54,15 +54,23 @@ function onShiftEnter(e) {
   }
 }
 
+function onBroadcastMessage(e) {
+  if (e.data && e.data.type === 'broadcast-enter') {
+    store.broadcastInput('Enter');
+  }
+}
+
 onMounted(() => {
   refreshTunnelStatus();
   // Retry after 20s in case tunnel hasn't connected yet on startup
   setTimeout(refreshTunnelStatus, 20000);
   window.addEventListener('keydown', onShiftEnter);
+  window.addEventListener('message', onBroadcastMessage);
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onShiftEnter);
+  window.removeEventListener('message', onBroadcastMessage);
 });
 
 const tunnelMenuOpen = ref(false);

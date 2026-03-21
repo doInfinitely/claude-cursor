@@ -147,7 +147,8 @@ async function createApp(portStart, portEnd) {
         proxyRes.on('data', (chunk) => chunks.push(chunk));
         proxyRes.on('end', () => {
           let body = Buffer.concat(chunks).toString('utf-8');
-          body = body.replace('</head>', '<script>' + MOBILE_TOOLBAR_SCRIPT + '</script></head>');
+          const BROADCAST_SCRIPT = `(function(){window.addEventListener('keydown',function(e){if(e.shiftKey&&e.key==='Enter'){e.preventDefault();e.stopPropagation();try{window.parent.postMessage({type:'broadcast-enter'},'*')}catch(x){}}},true)})()`;
+          body = body.replace('</head>', '<script>' + BROADCAST_SCRIPT + '</script><script>' + MOBILE_TOOLBAR_SCRIPT + '</script></head>');
           const headers = Object.assign({}, proxyRes.headers);
           delete headers['transfer-encoding'];
           delete headers['content-encoding'];
@@ -306,14 +307,23 @@ async function createApp(portStart, portEnd) {
       const remote = remoteServers.get(req.params.id);
       if (!remote) return res.status(404).json({ error: 'Remote not found' });
 
-      const resp = await fetch(`${remote.baseUrl}/api/sessions/${encodeURIComponent(req.params.name)}/input`, {
+      const url = `${remote.baseUrl}/api/sessions/${encodeURIComponent(req.params.name)}/input`;
+      console.log(`[Remote] POST ${url}`);
+      const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(req.body),
       });
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        console.warn(`[Remote] input returned non-JSON (${resp.status}) — remote may need updating`);
+        return res.status(502).json({ error: 'Remote server does not support input endpoint — update required' });
+      }
       const data = await resp.json();
+      if (!resp.ok) console.warn(`[Remote] input failed ${resp.status}:`, data);
       res.status(resp.status).json(data);
     } catch (err) {
+      console.error(`[Remote] input proxy error:`, err.message);
       res.status(502).json({ error: err.message });
     }
   });

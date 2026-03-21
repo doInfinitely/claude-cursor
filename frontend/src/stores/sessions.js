@@ -16,7 +16,7 @@ export const useSessionStore = defineStore('sessions', () => {
 
   // Grid view
   const viewMode = ref('list') // 'list' | 'grid'
-  const gridColumns = ref(2)
+  const gridCellWidth = ref(500)
 
   const remoteSessionsFlat = computed(() => {
     const result = []
@@ -308,25 +308,33 @@ export const useSessionStore = defineStore('sessions', () => {
     // Local running sessions
     for (const s of sessions.value) {
       if (s.status === 'running') {
+        const url = `/api/sessions/${encodeURIComponent(s.name)}/input`
         promises.push(
-          fetch(`/api/sessions/${encodeURIComponent(s.name)}/input`, {
+          fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ keys })
-          }).catch(() => {})
+          }).then(r => {
+            if (!r.ok) console.warn(`[broadcast] local ${s.name} failed: ${r.status}`)
+          }).catch(e => console.warn(`[broadcast] local ${s.name} error:`, e))
         )
       }
     }
 
     // Remote running sessions
-    for (const s of remoteSessionsFlat.value) {
+    const remoteSessions = remoteSessionsFlat.value
+    console.log(`[broadcast] ${sessions.value.filter(s => s.status === 'running').length} local, ${remoteSessions.filter(s => s.status === 'running').length} remote`)
+    for (const s of remoteSessions) {
       if (s.status === 'running') {
+        const url = `/api/remote-servers/${s.remoteId}/sessions/${encodeURIComponent(s.name)}/input`
         promises.push(
-          fetch(`/api/remote-servers/${s.remoteId}/sessions/${encodeURIComponent(s.name)}/input`, {
+          fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ keys })
-          }).catch(() => {})
+          }).then(r => {
+            if (!r.ok) console.warn(`[broadcast] remote ${s.name} failed: ${r.status}`)
+          }).catch(e => console.warn(`[broadcast] remote ${s.name} error:`, e))
         )
       }
     }
@@ -339,8 +347,8 @@ export const useSessionStore = defineStore('sessions', () => {
     viewMode.value = mode
   }
 
-  function setGridColumns(cols) {
-    gridColumns.value = cols
+  function setGridCellWidth(width) {
+    gridCellWidth.value = width
   }
 
   return {
@@ -354,7 +362,7 @@ export const useSessionStore = defineStore('sessions', () => {
     allSessions,
     currentTerminalUrl,
     viewMode,
-    gridColumns,
+    gridCellWidth,
     init,
     fetchSessions,
     createSession,
@@ -379,6 +387,6 @@ export const useSessionStore = defineStore('sessions', () => {
     removeRemoteServer,
     broadcastInput,
     setViewMode,
-    setGridColumns,
+    setGridCellWidth,
   }
 })
