@@ -188,9 +188,12 @@ async function main() {
   }
   console.log(`  → Chrome window: ${win.w}x${win.h} at (${win.x},${win.y})\n`);
 
-  // ── Hero screenshot ──
+  // ── Hero screenshot — show list view with sessions visible ──
   console.log("Capturing hero...");
   focusChrome();
+  await sleep(500);
+  // Ensure list view is active for hero
+  pageJS("(function(){ var b=document.querySelector('button[title=\"List view\"]'); if(b) b.click(); })()");
   await sleep(1000);
   screenshotChrome(path.join(OUTPUT_DIR, "hero-preview.png"));
   console.log("  ✓ hero-preview.png\n");
@@ -297,6 +300,76 @@ async function main() {
     // Now click share
     pageJS(`(function(){ var cards = document.querySelectorAll('.session-card'); for (var i = 0; i < cards.length; i++) { if (cards[i].textContent.includes('${sessionName}')) { var btn = cards[i].querySelector('.url-btn'); if (btn) btn.click(); break; } } })()`);
     await sleep(3000);
+  });
+
+  // ── 5. Remote sessions — open Add Remote dialog, show fields, close ──
+  await recordWithActions("remote-sessions", 8, async () => {
+    clickSession(sessionName);
+    await sleep(1000);
+    // Click the Add Remote button in sidebar header
+    pageJS("document.querySelector('.add-remote-btn').click()");
+    await sleep(2000);
+    // Type a URL into the first input
+    const url = "https://my-server.trycloudflare.com";
+    for (const ch of url) {
+      pageJS(`(function(){ var i=document.querySelector('.modal-body .form-group:nth-child(1) input'); if(i){i.focus(); i.value+='${ch}'; i.dispatchEvent(new Event('input',{bubbles:true}));} })()`);
+      await sleep(50);
+    }
+    await sleep(1500);
+    // Type a label
+    const label = "staging-server";
+    pageJS(`(function(){ var i=document.querySelector('.modal-body .form-group:nth-child(2) input'); if(i){i.focus();} })()`);
+    await sleep(200);
+    for (const ch of label) {
+      pageJS(`(function(){ var i=document.querySelector('.modal-body .form-group:nth-child(2) input'); if(i){i.value+='${ch}'; i.dispatchEvent(new Event('input',{bubbles:true}));} })()`);
+      await sleep(50);
+    }
+    await sleep(2000);
+    // Close dialog
+    pageJS("(function(){ var b=document.querySelector('.modal-header .close-btn'); if(b) b.click(); })()");
+    await sleep(1000);
+  });
+
+  // ── 6. Grid view — toggle grid, adjust slider, toggle back ──
+  await recordWithActions("grid-view", 8, async () => {
+    await sleep(500);
+    // Click grid view button
+    pageJS("document.querySelector('button[title=\"Grid view\"]').click()");
+    await sleep(2000);
+    // Animate the size slider from current to smaller then larger
+    pageJS(`(function(){
+      var s = document.querySelector('.size-slider');
+      if (!s) return;
+      var v = parseInt(s.value);
+      var steps = [v, v-100, v-200, v-100, v, v+100, v+200, v+100, v];
+      var i = 0;
+      var iv = setInterval(function(){
+        if (i >= steps.length) { clearInterval(iv); return; }
+        s.value = Math.max(200, Math.min(1200, steps[i]));
+        s.dispatchEvent(new Event('input', {bubbles:true}));
+        i++;
+      }, 300);
+    })()`);
+    await sleep(4000);
+    // Switch back to list view
+    pageJS("document.querySelector('button[title=\"List view\"]').click()");
+    await sleep(1000);
+  });
+
+  // ── 7. Broadcast Enter — show grid view, dispatch Shift+Enter ──
+  await recordWithActions("broadcast-enter", 6, async () => {
+    await sleep(500);
+    // Switch to grid view first
+    pageJS("document.querySelector('button[title=\"Grid view\"]').click()");
+    await sleep(2000);
+    // Dispatch Shift+Enter
+    pageJS(`(function(){
+      document.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', code:'Enter', shiftKey:true, bubbles:true}));
+    })()`);
+    await sleep(2500);
+    // Switch back to list view
+    pageJS("document.querySelector('button[title=\"List view\"]').click()");
+    await sleep(500);
   });
 
   console.log("\n✅ Done! Videos saved to website/public/features/");

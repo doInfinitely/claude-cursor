@@ -24,9 +24,9 @@ export default function Home() {
           </h1>
 
           <p className="text-xl text-[#c4b898] max-w-2xl mx-auto mb-10">
-            Launch and manage terminal sessions that survive disconnects. Access
-            them from any browser, get notified on Slack or Discord when they
-            need attention.
+            Launch and manage terminal sessions that survive disconnects. Monitor
+            remote instances, view everything in a grid, and get notified when
+            they need attention.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
@@ -219,6 +219,21 @@ const FEATURES = [
     icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>',
     desc: "Auto-starts a Cloudflare tunnel so you can access your sessions from anywhere. Share the URL — no port forwarding needed.",
   },
+  {
+    title: "Remote sessions",
+    icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/><circle cx="12" cy="12" r="3"/></svg>',
+    desc: "Connect to other Claude Cursor instances via cloudflared URLs or share links. Monitor their sessions alongside your own.",
+  },
+  {
+    title: "Grid view",
+    icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+    desc: "View all running terminals simultaneously in a resizable grid. Adjust the size with a slider — auto-wraps with scroll.",
+  },
+  {
+    title: "Broadcast input",
+    icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2a5.5 5.5 0 010-8.4"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a5.5 5.5 0 010 8.4"/><path d="M19.1 4.9C23 8.8 23 15.2 19.1 19.1"/></svg>',
+    desc: "Press Shift+Enter to send Enter to every running session at once — local and remote. Perfect for batch confirmations.",
+  },
 ];
 
 const SHOWCASE = [
@@ -241,5 +256,20 @@ const SHOWCASE = [
     title: "Access from anywhere",
     video: "/features/tunnel.mp4",
     desc: "Auto-starts a Cloudflare tunnel so your terminals are accessible from any device. Share the public URL with your team or access your sessions from your phone.",
+  },
+  {
+    title: "Monitor remote instances",
+    video: "/features/remote-sessions.mp4",
+    desc: "Add other Claude Cursor instances by their cloudflared URL or share link. Their sessions appear in your sidebar alongside your own — monitor everything from one window.",
+  },
+  {
+    title: "Grid view for everything",
+    video: "/features/grid-view.mp4",
+    desc: "Toggle grid view to see all your terminals at once. Drag the size slider to resize tiles — the grid auto-wraps and scrolls to fit.",
+  },
+  {
+    title: "Broadcast to all sessions",
+    video: "/features/broadcast-enter.mp4",
+    desc: "Press Shift+Enter to send Enter to every running terminal simultaneously. Great for batch approvals, confirmations, or restarting multiple processes at once.",
   },
 ];
