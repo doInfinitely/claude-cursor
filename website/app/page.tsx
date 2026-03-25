@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import SlowVideo from "@/components/SlowVideo";
 
 export default function Home() {
   return (
@@ -113,15 +114,7 @@ export default function Home() {
               >
                 <div className="flex-1 w-full">
                   <div className="rounded-xl border border-[#5d3d3a] bg-[#3b110c] shadow-lg overflow-hidden aspect-video flex items-center justify-center">
-                    <video
-                      src={s.video}
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover"
-                      ref={(el) => { if (el) el.playbackRate = 0.75; }}
-                    />
+                    <SlowVideo src={s.video} className="w-full h-full object-cover" />
                   </div>
                 </div>
                 <div className="flex-1">
