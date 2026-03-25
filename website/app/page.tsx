@@ -120,6 +120,7 @@ export default function Home() {
                       muted
                       playsInline
                       className="w-full h-full object-cover"
+                      ref={(el) => { if (el) el.playbackRate = 0.75; }}
                     />
                   </div>
                 </div>
