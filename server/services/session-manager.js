@@ -1,16 +1,24 @@
 const { spawn, execSync } = require('child_process');
 const net = require('net');
 const EventEmitter = require('events');
+const path = require('path');
 const PortManager = require('./port-manager');
 
 const SESSION_NAME_RE = /^[a-zA-Z0-9_-]+$/;
+const IS_WIN = process.platform === 'win32';
 
-const KNOWN_SHELLS = [
-  { id: 'bash', name: 'Bash', paths: ['/bin/bash', '/usr/bin/bash', '/usr/local/bin/bash', '/opt/homebrew/bin/bash'] },
-  { id: 'zsh', name: 'Zsh', paths: ['/bin/zsh', '/usr/bin/zsh', '/usr/local/bin/zsh', '/opt/homebrew/bin/zsh'] },
-  { id: 'fish', name: 'Fish', paths: ['/usr/local/bin/fish', '/opt/homebrew/bin/fish', '/usr/bin/fish'] },
-  { id: 'sh', name: 'Sh', paths: ['/bin/sh', '/usr/bin/sh'] },
-];
+const KNOWN_SHELLS = IS_WIN
+  ? [
+      { id: 'powershell', name: 'PowerShell', paths: ['C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'] },
+      { id: 'cmd', name: 'Command Prompt', paths: ['C:\\Windows\\System32\\cmd.exe'] },
+      { id: 'bash', name: 'Git Bash', paths: ['C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files (x86)\\Git\\bin\\bash.exe'] },
+    ]
+  : [
+      { id: 'bash', name: 'Bash', paths: ['/bin/bash', '/usr/bin/bash', '/usr/local/bin/bash', '/opt/homebrew/bin/bash'] },
+      { id: 'zsh', name: 'Zsh', paths: ['/bin/zsh', '/usr/bin/zsh', '/usr/local/bin/zsh', '/opt/homebrew/bin/zsh'] },
+      { id: 'fish', name: 'Fish', paths: ['/usr/local/bin/fish', '/opt/homebrew/bin/fish', '/usr/bin/fish'] },
+      { id: 'sh', name: 'Sh', paths: ['/bin/sh', '/usr/bin/sh'] },
+    ];
 
 const fs = require('fs');
 
@@ -22,8 +30,60 @@ function detectShells() {
       available.push({ id: shell.id, name: shell.name, path: found });
     }
   }
+
+  // Detect WSL distributions on Windows
+  if (IS_WIN) {
+    try {
+      const output = execSync('wsl.exe -l -q', {
+        encoding: 'utf-16le',
+        timeout: 5000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      if (output) {
+        const distros = output.split('\n')
+          .map(line => line.trim().replace(/\0/g, ''))
+          .filter(Boolean);
+        for (const distro of distros) {
+          if (distro === 'docker-desktop' || distro === 'docker-desktop-data') continue;
+          available.push({
+            id: `wsl-${distro.toLowerCase()}`,
+            name: `WSL (${distro})`,
+            path: 'wsl.exe',
+            args: ['-d', distro],
+          });
+        }
+      }
+    } catch {
+      // WSL not available
+    }
+
+    // Add default WSL fallback if no distros were detected
+    if (!available.some(s => s.id.startsWith('wsl-'))) {
+      try {
+        execSync('wsl.exe --status', { stdio: 'ignore', timeout: 3000 });
+        available.push({ id: 'wsl', name: 'WSL', path: 'wsl.exe', args: [] });
+      } catch {
+        // no default WSL
+      }
+    }
+  }
+
   return available;
 }
+
+// Resolve paths to bundled vendor binaries on Windows
+function resolveVendorBinaries() {
+  const vendorDir = process.env.CLAUDE_CURSOR_VENDOR_DIR;
+  if (!IS_WIN || !vendorDir) return { ttydPath: 'ttyd', tmuxPath: 'tmux' };
+  const ttydPath = path.join(vendorDir, 'ttyd.exe');
+  const tmuxPath = path.join(vendorDir, 'msys2', 'usr', 'bin', 'tmux.exe');
+  return {
+    ttydPath: fs.existsSync(ttydPath) ? ttydPath : 'ttyd',
+    tmuxPath: fs.existsSync(tmuxPath) ? tmuxPath : 'tmux',
+  };
+}
+
+const { ttydPath: TTYD_BIN, tmuxPath: TMUX_BIN } = resolveVendorBinaries();
 
 // Claude color palette terminal theme
 const TTYD_THEME = JSON.stringify({
@@ -54,6 +114,7 @@ const TTYD_THEME = JSON.stringify({
 // user-installed tools (claude, cargo, etc.) even when the server
 // itself was launched with a minimal PATH (e.g. from Electron/launchd).
 function resolveLoginPath() {
+  if (IS_WIN) return null; // Windows PATH is already set by Electron main
   const shells = [process.env.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh'].filter(Boolean);
   for (const shell of shells) {
     try {
@@ -74,10 +135,22 @@ const loginPath = resolveLoginPath();
 const basePath = loginPath || process.env.PATH || '';
 const SPAWN_ENV = {
   ...process.env,
-  PATH: `/usr/local/bin:/opt/homebrew/bin:${basePath}`,
   COLORTERM: 'truecolor',
   LANG: process.env.LANG || 'en_US.UTF-8',
 };
+
+if (IS_WIN) {
+  // On Windows, ensure vendor msys2 bin dir is on PATH for tmux DLLs
+  const vendorDir = process.env.CLAUDE_CURSOR_VENDOR_DIR;
+  if (vendorDir) {
+    const msys2Bin = path.join(vendorDir, 'msys2', 'usr', 'bin');
+    const terminfo = path.join(vendorDir, 'msys2', 'usr', 'share', 'terminfo');
+    SPAWN_ENV.PATH = `${msys2Bin};${vendorDir};${SPAWN_ENV.PATH || ''}`;
+    SPAWN_ENV.TERMINFO = terminfo;
+  }
+} else {
+  SPAWN_ENV.PATH = `/usr/local/bin:/opt/homebrew/bin:${basePath}`;
+}
 // Prevent nested tmux when server itself runs inside tmux
 delete SPAWN_ENV.TMUX;
 delete SPAWN_ENV.TMUX_PANE;
@@ -115,7 +188,7 @@ class SessionManager extends EventEmitter {
   async recoverSessions() {
     let tmuxOutput;
     try {
-      tmuxOutput = execSync('tmux list-sessions -F "#{session_name}"', {
+      tmuxOutput = execSync(`"${TMUX_BIN}" list-sessions -F "#{session_name}"`, {
         encoding: 'utf-8',
         env: SPAWN_ENV
       }).trim();
@@ -135,22 +208,48 @@ class SessionManager extends EventEmitter {
     }
   }
 
-  spawnTtyd(name, port, shellPath) {
-    const home = process.env.HOME || '/';
-    const effectiveShell = shellPath || process.env.SHELL || '/bin/sh';
+  spawnTtyd(name, port, shellSpec) {
+    const home = process.env.HOME || process.env.USERPROFILE || '/';
+    const env = { ...SPAWN_ENV };
+
+    // shellSpec can be a string path, an object { path, args }, or null
+    let shellParts;
+    if (shellSpec && typeof shellSpec === 'object') {
+      shellParts = [shellSpec.path, ...(shellSpec.args || [])];
+    } else {
+      shellParts = [shellSpec || process.env.SHELL || (IS_WIN ? 'cmd.exe' : '/bin/sh')];
+    }
+
+    const shellStr = shellParts.join(' ');
+
+    if (IS_WIN) {
+      const tmuxArgs = [TMUX_BIN, 'new', '-A', '-s', name, ...shellParts];
+
+      return spawn(TTYD_BIN, [
+        '-W', '-p', String(port),
+        '-b', `/terminal/${name}`,
+        '-s', '9',
+        '-t', `theme=${TTYD_THEME}`,
+        ...tmuxArgs
+      ], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false,
+        env
+      });
+    }
+
     // Use non-login shell so the SPAWN_ENV PATH (resolved via resolveLoginPath())
     // is preserved. Login shells trigger path_helper which resets PATH from scratch.
-    const tmuxArgs = ['tmux', '-u', 'new', '-A', '-s', name, '-c', home, effectiveShell];
+    const tmuxArgs = ['tmux', '-u', 'new', '-A', '-s', name, '-c', home, ...shellParts];
     // Tell tmux to resize to the latest client (avoids stale column count)
     tmuxArgs.push(';', 'set-option', '-t', name, 'window-size', 'latest');
     // Ensure new tmux windows also use non-login shell with inherited PATH
-    tmuxArgs.push(';', 'set-option', '-t', name, 'default-command', effectiveShell);
+    tmuxArgs.push(';', 'set-option', '-t', name, 'default-command', shellStr);
     // Enable truecolor (24-bit color) passthrough so programs like Claude Code render correctly
     tmuxArgs.push(';', 'set-option', '-g', 'default-terminal', 'tmux-256color');
     tmuxArgs.push(';', 'set-option', '-sa', 'terminal-overrides', ',xterm-256color:RGB');
 
-    const env = { ...SPAWN_ENV };
-    if (shellPath) env.SHELL = shellPath;
+    if (shellSpec) env.SHELL = typeof shellSpec === 'string' ? shellSpec : shellSpec.path;
 
     return spawn('ttyd', [
       '-W', '-p', String(port),
@@ -239,6 +338,9 @@ class SessionManager extends EventEmitter {
     if (!shellId) return null;
     const shell = this.shells.find(s => s.id === shellId);
     if (!shell) throw new Error(`Shell "${shellId}" is not available`);
+    if (shell.args && shell.args.length) {
+      return { path: shell.path, args: shell.args };
+    }
     return shell.path;
   }
 
@@ -256,9 +358,9 @@ class SessionManager extends EventEmitter {
       name = this.generateName(shell);
     }
     this.validateName(name);
-    const shellPath = this.resolveShell(shell);
+    const shellSpec = this.resolveShell(shell);
     const port = await this.portManager.allocate();
-    const proc = this.spawnTtyd(name, port, shellPath);
+    const proc = this.spawnTtyd(name, port, shellSpec);
 
     let stderrBuf = '';
     proc.stderr.on('data', (chunk) => { stderrBuf += chunk; });
@@ -332,7 +434,7 @@ class SessionManager extends EventEmitter {
     }
     // Kill tmux session
     try {
-      execSync(`tmux kill-session -t ${name}`, { stdio: 'ignore' });
+      execSync(`"${TMUX_BIN}" kill-session -t ${name}`, { stdio: 'ignore', env: SPAWN_ENV });
     } catch (_) {
       // tmux session may not exist
     }
@@ -346,9 +448,9 @@ class SessionManager extends EventEmitter {
     if (session.status === 'running') {
       throw new Error(`Session "${name}" is already running`);
     }
-    const shellPath = this.resolveShell(session.shell);
+    const shellSpec = this.resolveShell(session.shell);
     const port = await this.portManager.allocate();
-    const proc = this.spawnTtyd(name, port, shellPath);
+    const proc = this.spawnTtyd(name, port, shellSpec);
 
     let stderrBuf = '';
     proc.stderr.on('data', (chunk) => { stderrBuf += chunk; });
@@ -386,9 +488,33 @@ class SessionManager extends EventEmitter {
     return this.serialize(session);
   }
 
+  toggleFlag(name) {
+    const session = this.sessions.get(name);
+    if (!session) throw new Error(`Session "${name}" not found`);
+
+    if (session.needsAction && session.actionType === 'flagged') {
+      session.needsAction = false;
+      session.actionType = null;
+      session.needsActionAt = null;
+      session.needsActionSnippet = null;
+      session.confidence = null;
+    } else {
+      session.needsAction = true;
+      session.actionType = 'flagged';
+      session.needsActionAt = new Date().toISOString();
+      session.needsActionSnippet = null;
+      session.confidence = null;
+    }
+    this.emit('session:updated', this.serialize(session));
+    return this.serialize(session);
+  }
+
   updateNeedsAction(name, { needsAction, confidence, snippet, actionType }) {
     const session = this.sessions.get(name);
     if (!session || session.status !== 'running') return;
+
+    // Don't let the monitor override a manually-flagged session
+    if (session.actionType === 'flagged') return;
 
     const changed = session.needsAction !== needsAction
       || session.actionType !== (actionType || null);

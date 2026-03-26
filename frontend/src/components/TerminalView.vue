@@ -9,13 +9,11 @@ const isDragging = ref(false);
 const iframeRef = ref(null);
 
 const currentSession = computed(() => {
-  return store.sessions.find((s) => s.name === store.current);
+  return store.allSessions.find((s) => s.displayKey === store.current);
 });
 
 const iframeSrc = computed(() => {
-  if (!currentSession.value || currentSession.value.status !== "running")
-    return null;
-  return `/terminal/${currentSession.value.name}`;
+  return store.currentTerminalUrl;
 });
 
 // Drag-and-drop file upload
