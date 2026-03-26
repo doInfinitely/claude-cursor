@@ -92,7 +92,7 @@ function onNotifyClick(e) {
     :class="{ active, collapsed }"
     :title="session.name"
   >
-    <div class="status-indicator" :class="[session.status, session.needsAction && `action-${session.actionType || 'prompt'}`]" @click.stop="store.toggleFlag(session.name)"></div>
+    <div class="status-indicator" :class="[session.status, session.needsAction && `action-${session.actionType || 'prompt'}`]" @click.stop="store.toggleFlag(session.remote ? session.remoteId + ':' + session.name : session.name)"></div>
 
     <div class="card-content" v-show="!collapsed">
       <div class="card-top">

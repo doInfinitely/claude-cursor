@@ -236,6 +236,20 @@ export const useSessionStore = defineStore('sessions', () => {
 
 
   async function toggleFlag(name) {
+    // Check if this is a remote session (remoteId:sessionName)
+    const remoteSession = remoteSessionsFlat.value.find(
+      s => `${s.remoteId}:${s.name}` === name
+    )
+    if (remoteSession) {
+      const url = `/api/remote-servers/${remoteSession.remoteId}/sessions/${encodeURIComponent(remoteSession.name)}/flag`
+      const res = await fetch(url, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error)
+      }
+      await refreshRemoteSessions()
+      return
+    }
     const res = await fetch(`/api/sessions/${name}/flag`, { method: 'POST' })
     if (!res.ok) {
       const data = await res.json()

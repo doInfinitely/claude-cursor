@@ -328,6 +328,24 @@ async function createApp(portStart, portEnd) {
     }
   });
 
+  app.post('/api/remote-servers/:id/sessions/:name/flag', async (req, res) => {
+    try {
+      const remote = remoteServers.get(req.params.id);
+      if (!remote) return res.status(404).json({ error: 'Remote not found' });
+
+      const url = `${remote.baseUrl}/api/sessions/${encodeURIComponent(req.params.name)}/flag`;
+      const resp = await fetch(url, { method: 'POST' });
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        return res.status(502).json({ error: 'Remote server does not support flag endpoint' });
+      }
+      const data = await resp.json();
+      res.status(resp.status).json(data);
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    }
+  });
+
   app.get('/api/notifications/targets', async (req, res) => {
     try {
       const targets = await notifier.getTargets();

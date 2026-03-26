@@ -18,18 +18,22 @@ function actionRank(session) {
   return ACTION_PRIORITY[session.actionType] ?? 3;
 }
 
+function rankSort(a, b) {
+  const ra = actionRank(a);
+  const rb = actionRank(b);
+  if (ra !== rb) return ra - rb;
+  if (a.status === "running" && b.status !== "running") return -1;
+  if (a.status !== "running" && b.status === "running") return 1;
+  return 0;
+}
+
 const sortedSessions = computed(() => {
-  return [...store.sessions].sort((a, b) => {
-    // Sort by action priority (approval > completed > prompt > none)
-    const ra = actionRank(a);
-    const rb = actionRank(b);
-    if (ra !== rb) return ra - rb;
-    // then running before stopped
-    if (a.status === "running" && b.status !== "running") return -1;
-    if (a.status !== "running" && b.status === "running") return 1;
-    return 0;
-  });
+  return [...store.sessions].sort(rankSort);
 });
+
+function sortedRemoteSessions(serverId) {
+  return [...(store.remoteSessionsMap[serverId] || [])].sort(rankSort);
+}
 
 const runningCount = computed(() =>
   store.sessions.filter((s) => s.status === "running").length
@@ -117,7 +121,7 @@ const approvalCount = computed(() =>
             >&#10005;</button>
           </div>
           <SessionCard
-            v-for="rs in (store.remoteSessionsMap[server.id] || [])"
+            v-for="rs in sortedRemoteSessions(server.id)"
             :key="rs.remoteId + ':' + rs.name"
             :session="rs"
             :active="store.current === rs.remoteId + ':' + rs.name"
