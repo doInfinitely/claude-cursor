@@ -1,8 +1,10 @@
 <script setup>
-import { ref, provide, computed, onMounted } from "vue";
+import { ref, provide, computed, onMounted, onUnmounted } from "vue";
 import Sidebar from "./components/Sidebar.vue";
 import TerminalView from "./components/TerminalView.vue";
 import CreateDialog from "./components/CreateDialog.vue";
+import AddRemoteDialog from "./components/AddRemoteDialog.vue";
+import GridView from "./components/GridView.vue";
 import NotifyConfigDialog from "./components/NotifyConfigDialog.vue";
 import ApiKeyDialog from "./components/ApiKeyDialog.vue";
 import ShareExpiryDialog from "./components/ShareExpiryDialog.vue";
@@ -29,6 +31,7 @@ const shellSummary = computed(() => {
 });
 const sidebarCollapsed = ref(false);
 const showCreateDialog = ref(false);
+const showAddRemoteDialog = ref(false);
 const showApiKeyDialog = ref(false);
 const notifyConfigSession = ref(null);
 const shareCustomSession = ref(null);
@@ -44,10 +47,30 @@ async function refreshTunnelStatus() {
   } catch {}
 }
 
+function onShiftEnter(e) {
+  if (e.shiftKey && e.key === 'Enter') {
+    e.preventDefault();
+    store.broadcastInput('Enter');
+  }
+}
+
+function onBroadcastMessage(e) {
+  if (e.data && e.data.type === 'broadcast-enter') {
+    store.broadcastInput('Enter');
+  }
+}
+
 onMounted(() => {
   refreshTunnelStatus();
   // Retry after 20s in case tunnel hasn't connected yet on startup
   setTimeout(refreshTunnelStatus, 20000);
+  window.addEventListener('keydown', onShiftEnter);
+  window.addEventListener('message', onBroadcastMessage);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onShiftEnter);
+  window.removeEventListener('message', onBroadcastMessage);
 });
 
 const tunnelMenuOpen = ref(false);
@@ -151,6 +174,36 @@ function handleMobileOverlayClick() {
       </div>
 
       <div class="toolbar-right">
+        <div class="view-toggle">
+          <button
+            class="icon-btn view-btn"
+            :class="{ active: store.viewMode === 'list' }"
+            @click="store.setViewMode('list')"
+            title="List view"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6"></line>
+              <line x1="8" y1="12" x2="21" y2="12"></line>
+              <line x1="8" y1="18" x2="21" y2="18"></line>
+              <line x1="3" y1="6" x2="3.01" y2="6"></line>
+              <line x1="3" y1="12" x2="3.01" y2="12"></line>
+              <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+          </button>
+          <button
+            class="icon-btn view-btn"
+            :class="{ active: store.viewMode === 'grid' }"
+            @click="store.setViewMode('grid')"
+            title="Grid view"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+          </button>
+        </div>
         <span v-if="shellSummary" class="shell-summary">{{ shellSummary }}</span>
         <div v-if="tunnelUrl" class="tunnel-wrapper">
           <button
@@ -180,24 +233,32 @@ function handleMobileOverlayClick() {
     </header>
 
     <div class="main-area">
-      <!-- Mobile Overlay -->
-      <div
-        class="sidebar-overlay"
-        :class="{ show: !sidebarCollapsed }"
-        @click="handleMobileOverlayClick"
-      ></div>
+      <template v-if="store.viewMode === 'grid'">
+        <GridView />
+      </template>
 
-      <Sidebar
-        :collapsed="sidebarCollapsed"
-        @create="showCreateDialog = true"
-        @configure-notify="(name) => notifyConfigSession = name"
-        @share-custom="(name) => shareCustomSession = name"
-      />
+      <template v-else>
+        <!-- Mobile Overlay -->
+        <div
+          class="sidebar-overlay"
+          :class="{ show: !sidebarCollapsed }"
+          @click="handleMobileOverlayClick"
+        ></div>
 
-      <TerminalView @create="showCreateDialog = true" />
+        <Sidebar
+          :collapsed="sidebarCollapsed"
+          @create="showCreateDialog = true"
+          @add-remote="showAddRemoteDialog = true"
+          @configure-notify="(name) => notifyConfigSession = name"
+          @share-custom="(name) => shareCustomSession = name"
+        />
+
+        <TerminalView @create="showCreateDialog = true" />
+      </template>
     </div>
 
     <CreateDialog v-if="showCreateDialog" @close="showCreateDialog = false" />
+    <AddRemoteDialog v-if="showAddRemoteDialog" @close="showAddRemoteDialog = false" />
     <NotifyConfigDialog
       v-if="notifyConfigSession"
       :session-name="notifyConfigSession"
@@ -317,6 +378,37 @@ function handleMobileOverlayClick() {
   align-items: center;
   gap: 12px;
   -webkit-app-region: no-drag;
+}
+
+.view-toggle {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.view-btn {
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border-color);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.view-btn:last-child {
+  border-right: none;
+}
+.view-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+.view-btn.active {
+  color: var(--accent-primary);
+  background: rgba(189, 183, 252, 0.1);
 }
 
 .shell-summary {

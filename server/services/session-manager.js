@@ -488,9 +488,33 @@ class SessionManager extends EventEmitter {
     return this.serialize(session);
   }
 
+  toggleFlag(name) {
+    const session = this.sessions.get(name);
+    if (!session) throw new Error(`Session "${name}" not found`);
+
+    if (session.needsAction && session.actionType === 'flagged') {
+      session.needsAction = false;
+      session.actionType = null;
+      session.needsActionAt = null;
+      session.needsActionSnippet = null;
+      session.confidence = null;
+    } else {
+      session.needsAction = true;
+      session.actionType = 'flagged';
+      session.needsActionAt = new Date().toISOString();
+      session.needsActionSnippet = null;
+      session.confidence = null;
+    }
+    this.emit('session:updated', this.serialize(session));
+    return this.serialize(session);
+  }
+
   updateNeedsAction(name, { needsAction, confidence, snippet, actionType }) {
     const session = this.sessions.get(name);
     if (!session || session.status !== 'running') return;
+
+    // Don't let the monitor override a manually-flagged session
+    if (session.actionType === 'flagged') return;
 
     const changed = session.needsAction !== needsAction
       || session.actionType !== (actionType || null);

@@ -69,6 +69,7 @@ const SlackBot = require('./services/slack-bot');
 const TunnelService = require('./services/tunnel');
 const sessionsRoute = require('./routes/sessions');
 const ShareTokenStore = require('./services/share-tokens');
+const RemoteServers = require('./services/remote-servers');
 const setupWebSocket = require('./ws');
 
 async function createApp(portStart, portEnd) {
@@ -141,7 +142,8 @@ async function createApp(portStart, portEnd) {
         proxyRes.on('data', (chunk) => chunks.push(chunk));
         proxyRes.on('end', () => {
           let body = Buffer.concat(chunks).toString('utf-8');
-          body = body.replace('</head>', '<script>' + MOBILE_TOOLBAR_SCRIPT + '</script></head>');
+          const BROADCAST_SCRIPT = `(function(){window.addEventListener('keydown',function(e){if(e.shiftKey&&e.key==='Enter'){e.preventDefault();e.stopPropagation();try{window.parent.postMessage({type:'broadcast-enter'},'*')}catch(x){}}},true)})()`;
+          body = body.replace('</head>', '<script>' + BROADCAST_SCRIPT + '</script><script>' + MOBILE_TOOLBAR_SCRIPT + '</script></head>');
           const headers = Object.assign({}, proxyRes.headers);
           delete headers['transfer-encoding'];
           delete headers['content-encoding'];
@@ -222,6 +224,122 @@ async function createApp(portStart, portEnd) {
 
   // API routes
   app.use('/api/sessions', sessionsRoute(sessionManager, { notifier, shareTokens, tunnel }));
+
+  // Remote servers
+  const remoteServers = new RemoteServers();
+
+  app.get('/api/remote-servers', (req, res) => {
+    res.json({ servers: remoteServers.list() });
+  });
+
+  app.post('/api/remote-servers', async (req, res) => {
+    try {
+      const { url, label } = req.body;
+      if (!url) return res.status(400).json({ error: 'url is required' });
+
+      const parsed = remoteServers.parseUrl(url);
+
+      // Validate by fetching from the remote
+      if (parsed.type === 'share') {
+        const resp = await fetch(`${parsed.baseUrl}/api/share/${parsed.token}`);
+        if (!resp.ok) return res.status(400).json({ error: 'Invalid or expired share link' });
+      } else {
+        const resp = await fetch(`${parsed.baseUrl}/api/sessions`);
+        if (!resp.ok) return res.status(400).json({ error: 'Could not reach remote instance' });
+      }
+
+      const entry = remoteServers.add({ url, label });
+      res.status(201).json(entry);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/remote-servers/:id', (req, res) => {
+    remoteServers.remove(req.params.id);
+    res.json({ ok: true });
+  });
+
+  app.get('/api/remote-servers/:id/sessions', async (req, res) => {
+    try {
+      const remote = remoteServers.get(req.params.id);
+      if (!remote) return res.status(404).json({ error: 'Remote not found' });
+
+      if (remote.type === 'share') {
+        const resp = await fetch(`${remote.baseUrl}/api/share/${remote.token}`);
+        if (!resp.ok) return res.json({ sessions: [] });
+        const data = await resp.json();
+        res.json({
+          sessions: [{
+            name: data.sessionName,
+            status: data.status,
+            remote: true,
+            remoteId: remote.id,
+            remoteBaseUrl: remote.baseUrl,
+            terminalUrl: `${remote.baseUrl}/s/${remote.token}`,
+          }]
+        });
+      } else {
+        const resp = await fetch(`${remote.baseUrl}/api/sessions`);
+        if (!resp.ok) return res.json({ sessions: [] });
+        const data = await resp.json();
+        const sessions = (data.sessions || []).map(s => ({
+          ...s,
+          remote: true,
+          remoteId: remote.id,
+          remoteBaseUrl: remote.baseUrl,
+          terminalUrl: `${remote.baseUrl}/terminal/${encodeURIComponent(s.name)}`,
+        }));
+        res.json({ sessions });
+      }
+    } catch (err) {
+      res.json({ sessions: [] });
+    }
+  });
+
+  app.post('/api/remote-servers/:id/sessions/:name/input', async (req, res) => {
+    try {
+      const remote = remoteServers.get(req.params.id);
+      if (!remote) return res.status(404).json({ error: 'Remote not found' });
+
+      const url = `${remote.baseUrl}/api/sessions/${encodeURIComponent(req.params.name)}/input`;
+      console.log(`[Remote] POST ${url}`);
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body),
+      });
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        console.warn(`[Remote] input returned non-JSON (${resp.status}) — remote may need updating`);
+        return res.status(502).json({ error: 'Remote server does not support input endpoint — update required' });
+      }
+      const data = await resp.json();
+      if (!resp.ok) console.warn(`[Remote] input failed ${resp.status}:`, data);
+      res.status(resp.status).json(data);
+    } catch (err) {
+      console.error(`[Remote] input proxy error:`, err.message);
+      res.status(502).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/remote-servers/:id/sessions/:name/flag', async (req, res) => {
+    try {
+      const remote = remoteServers.get(req.params.id);
+      if (!remote) return res.status(404).json({ error: 'Remote not found' });
+
+      const url = `${remote.baseUrl}/api/sessions/${encodeURIComponent(req.params.name)}/flag`;
+      const resp = await fetch(url, { method: 'POST' });
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        return res.status(502).json({ error: 'Remote server does not support flag endpoint' });
+      }
+      const data = await resp.json();
+      res.status(resp.status).json(data);
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    }
+  });
 
   app.get('/api/notifications/targets', async (req, res) => {
     try {

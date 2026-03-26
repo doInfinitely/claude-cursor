@@ -54,6 +54,34 @@ module.exports = function (sessionManager, { notifier, shareTokens, tunnel } = {
     }
   });
 
+  router.post('/:name/input', (req, res) => {
+    try {
+      const session = sessionManager.getSession(req.params.name);
+      if (session.status !== 'running') {
+        return res.status(400).json({ error: 'Session not running' });
+      }
+      const { keys } = req.body;
+      if (!keys) {
+        return res.status(400).json({ error: 'keys is required' });
+      }
+      execFileSync('tmux', ['send-keys', '-t', req.params.name, keys], {
+        timeout: 5000,
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/:name/flag', (req, res) => {
+    try {
+      const session = sessionManager.toggleFlag(req.params.name);
+      res.json(session);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   // Notification routing
   router.put('/:name/notify', (req, res) => {
     try {
