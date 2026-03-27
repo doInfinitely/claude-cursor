@@ -3,7 +3,9 @@ module.exports = {
     name: 'Claude Cursor',
     executableName: 'claude-cursor',
     icon: './assets/icon',
-    asar: true,
+    asar: {
+      unpackDir: 'vendor',
+    },
     ...(process.env.APPLE_ID ? {
       osxSign: {},
       osxNotarize: {
@@ -22,19 +24,31 @@ module.exports = {
       /^\/\.env$/,
       /^\/\.git/,
       /^\/doc/,
+      /^\/website/,
+      /^\/ios/,
+      /^\/android/,
+      /^\/vendor/,
+      /^\/relay/,
+      /^\/out/,
       /^\/CONVERSATION\.md/,
     ],
   },
   makers: [
     {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin', 'linux'],
+      platforms: ['darwin', 'linux', 'win32'],
     },
     {
       name: '@electron-forge/maker-dmg',
       config: {
         format: 'ULFO',
-        icon: './assets/icon.icns',
+        icon: require('path').resolve(__dirname, 'assets', 'icon.icns'),
+      },
+    },
+    {
+      name: '@electron-forge/maker-squirrel',
+      config: {
+        name: 'claude-cursor',
       },
     },
     {
@@ -43,7 +57,7 @@ module.exports = {
         options: {
           maintainer: 'Claude Cursor',
           homepage: 'https://github.com/anthropics/claude-cursor',
-          icon: './assets/icon.png',
+          icon: require('path').resolve(__dirname, 'assets', 'icon.png'),
         },
       },
     },

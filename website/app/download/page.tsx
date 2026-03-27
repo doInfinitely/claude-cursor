@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
-type Platform = "macos" | "linux" | "unknown";
+type Platform = "macos" | "linux" | "windows" | "unknown";
 
 const RELEASE_BASE =
   "https://github.com/doInfinitely/claude-cursor/releases/download/v1.0.0";
@@ -23,12 +23,18 @@ const INSTALLERS: Record<
     url: `${RELEASE_BASE}/claude-cursor_1.0.0_amd64.deb`,
     note: "Ubuntu/Debian &middot; x86_64 (zip also available)",
   },
+  windows: {
+    label: "Download for Windows (WSL2)",
+    url: `${RELEASE_BASE}/claude-cursor-1.0.0-wsl.tar.gz`,
+    note: "Windows 10/11 &middot; requires WSL2",
+  },
 };
 
 function detectPlatform(): Platform {
   if (typeof navigator === "undefined") return "unknown";
   const ua = navigator.userAgent.toLowerCase();
   if (ua.includes("mac")) return "macos";
+  if (ua.includes("win")) return "windows";
   if (ua.includes("linux")) return "linux";
   return "unknown";
 }
@@ -202,7 +208,7 @@ export default function DownloadPage() {
               {
                 step: "1",
                 title: "Install dependencies",
-                desc: "Claude Cursor requires ttyd and tmux. Install them with your package manager: brew install ttyd tmux (macOS) or apt install ttyd tmux (Linux).",
+                desc: "Claude Cursor requires ttyd and tmux for terminal sessions, and cloudflared for public URL tunnels. See install commands below.",
               },
               {
                 step: "2",
@@ -236,6 +242,50 @@ export default function DownloadPage() {
             ))}
           </ol>
 
+          {/* Dependencies install commands */}
+          <div className="mt-10 p-5 rounded-xl border border-[#5d3d3a] bg-[#3b110c]/60">
+            <h3 className="font-semibold text-[#e9e4a6] mb-2 flex items-center gap-2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <polyline points="4 17 10 11 4 5" />
+                <line x1="12" y1="19" x2="20" y2="19" />
+              </svg>
+              Required dependencies
+            </h3>
+            <p className="text-sm text-[#c4b898] leading-relaxed mb-4">
+              <strong className="text-[#f8eed2]">ttyd</strong> and{" "}
+              <strong className="text-[#f8eed2]">tmux</strong> are required for
+              terminal sessions.{" "}
+              <strong className="text-[#f8eed2]">cloudflared</strong> is optional
+              but needed for public URL tunnels (access from mobile/anywhere).
+            </p>
+
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="text-[#c4b898] font-medium mb-1.5">macOS (Homebrew)</p>
+                <code className="block px-3 py-2 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono">
+                  brew install ttyd tmux cloudflare/cloudflare/cloudflared
+                </code>
+              </div>
+              <div>
+                <p className="text-[#c4b898] font-medium mb-1.5">Ubuntu / Debian / WSL2</p>
+                <code className="block px-3 py-2 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono whitespace-pre-wrap">
+                  sudo apt install ttyd tmux{"\n"}
+                  {"\n"}# cloudflared (optional){"\n"}
+                  curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o /tmp/cloudflared.deb{"\n"}
+                  sudo dpkg -i /tmp/cloudflared.deb
+                </code>
+              </div>
+            </div>
+          </div>
+
           {/* tmux tip */}
           <div className="mt-10 p-5 rounded-xl border border-[#5d3d3a] bg-[#3b110c]/60">
             <h3 className="font-semibold text-[#e9e4a6] mb-2 flex items-center gap-2">
@@ -264,6 +314,58 @@ export default function DownloadPage() {
                 ctrl+b set mouse off
               </code>
             </div>
+          </div>
+
+          {/* Windows/WSL2 setup */}
+          <div className="mt-6 p-5 rounded-xl border border-[#5d3d3a] bg-[#3b110c]/60">
+            <h3 className="font-semibold text-[#e9e4a6] mb-2 flex items-center gap-2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <path d="M8 21h8M12 17v4" />
+              </svg>
+              Windows / WSL2
+            </h3>
+            <p className="text-sm text-[#c4b898] leading-relaxed mb-3">
+              Claude Cursor runs inside WSL2 on Windows. Follow these steps:
+            </p>
+            <ol className="space-y-2 text-sm text-[#c4b898]">
+              <li>
+                <span className="text-[#dd5013] font-semibold">1.</span>{" "}
+                Install WSL2 from PowerShell:
+                <code className="block mt-1 px-3 py-1.5 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono">
+                  wsl --install
+                </code>
+              </li>
+              <li>
+                <span className="text-[#dd5013] font-semibold">2.</span>{" "}
+                Inside WSL, install dependencies:
+                <code className="block mt-1 px-3 py-1.5 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono">
+                  sudo apt install nodejs npm ttyd tmux
+                </code>
+              </li>
+              <li>
+                <span className="text-[#dd5013] font-semibold">3.</span>{" "}
+                Extract and install:
+                <code className="block mt-1 px-3 py-1.5 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono whitespace-pre-wrap">
+                  tar xzf claude-cursor-1.0.0-wsl.tar.gz{"\n"}cd claude-cursor-1.0.0-wsl{"\n"}npm install && cd frontend && npm install
+                </code>
+              </li>
+              <li>
+                <span className="text-[#dd5013] font-semibold">4.</span>{" "}
+                Run and open the printed URL in your Windows browser:
+                <code className="block mt-1 px-3 py-1.5 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono">
+                  npm run dev
+                </code>
+              </li>
+            </ol>
           </div>
 
           {/* macOS troubleshooting */}

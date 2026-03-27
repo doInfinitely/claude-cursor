@@ -10,7 +10,7 @@ function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY);
 }
 
-const VALID_PLATFORMS = ["macos", "linux"] as const;
+const VALID_PLATFORMS = ["macos", "linux", "windows"] as const;
 
 export async function POST(req: NextRequest) {
   try {
