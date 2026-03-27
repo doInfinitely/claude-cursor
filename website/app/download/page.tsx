@@ -208,7 +208,7 @@ export default function DownloadPage() {
               {
                 step: "1",
                 title: "Install dependencies",
-                desc: "Claude Cursor requires ttyd and tmux. Install them with your package manager: brew install ttyd tmux (macOS) or apt install ttyd tmux (Linux).",
+                desc: "Claude Cursor requires ttyd and tmux for terminal sessions, and cloudflared for public URL tunnels. See install commands below.",
               },
               {
                 step: "2",
@@ -241,6 +241,50 @@ export default function DownloadPage() {
               </li>
             ))}
           </ol>
+
+          {/* Dependencies install commands */}
+          <div className="mt-10 p-5 rounded-xl border border-[#5d3d3a] bg-[#3b110c]/60">
+            <h3 className="font-semibold text-[#e9e4a6] mb-2 flex items-center gap-2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <polyline points="4 17 10 11 4 5" />
+                <line x1="12" y1="19" x2="20" y2="19" />
+              </svg>
+              Required dependencies
+            </h3>
+            <p className="text-sm text-[#c4b898] leading-relaxed mb-4">
+              <strong className="text-[#f8eed2]">ttyd</strong> and{" "}
+              <strong className="text-[#f8eed2]">tmux</strong> are required for
+              terminal sessions.{" "}
+              <strong className="text-[#f8eed2]">cloudflared</strong> is optional
+              but needed for public URL tunnels (access from mobile/anywhere).
+            </p>
+
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="text-[#c4b898] font-medium mb-1.5">macOS (Homebrew)</p>
+                <code className="block px-3 py-2 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono">
+                  brew install ttyd tmux cloudflare/cloudflare/cloudflared
+                </code>
+              </div>
+              <div>
+                <p className="text-[#c4b898] font-medium mb-1.5">Ubuntu / Debian / WSL2</p>
+                <code className="block px-3 py-2 rounded-lg bg-[#2a0a07] text-[#bdb7fc] font-mono whitespace-pre-wrap">
+                  sudo apt install ttyd tmux{"\n"}
+                  {"\n"}# cloudflared (optional){"\n"}
+                  curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o /tmp/cloudflared.deb{"\n"}
+                  sudo dpkg -i /tmp/cloudflared.deb
+                </code>
+              </div>
+            </div>
+          </div>
 
           {/* tmux tip */}
           <div className="mt-10 p-5 rounded-xl border border-[#5d3d3a] bg-[#3b110c]/60">

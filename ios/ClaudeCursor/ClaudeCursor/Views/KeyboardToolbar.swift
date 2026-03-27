@@ -5,7 +5,7 @@ struct KeyboardToolbar: View {
     @State private var resetTask: Task<Void, Never>?
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             modifierButton("Ctrl", active: activeModifier == "ctrl") {
                 toggleModifier("ctrl")
             }
@@ -24,8 +24,24 @@ struct KeyboardToolbar: View {
             keyButton("\u{2193}", "\u{1b}[B")
             keyButton("\u{2191}", "\u{1b}[A")
             keyButton("\u{2192}", "\u{1b}[C")
+
+            toolbarDivider
+
+            Button { pasteFromClipboard() } label: {
+                Text("Pst")
+                    .font(.system(.callout, design: .monospaced, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(minWidth: 32, minHeight: 34)
+                    .background(Theme.bgTertiary)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Theme.border, lineWidth: 0.5)
+                    )
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity)
         .background(Theme.bgSecondary.opacity(0.95))
@@ -82,6 +98,12 @@ struct KeyboardToolbar: View {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
+    private func pasteFromClipboard() {
+        haptic()
+        guard let text = UIPasteboard.general.string, !text.isEmpty else { return }
+        sendKey(text)
+    }
+
     private func escapeForJS(_ s: String) -> String {
         s.replacingOccurrences(of: "\\", with: "\\\\")
          .replacingOccurrences(of: "'", with: "\\'")
@@ -95,7 +117,7 @@ struct KeyboardToolbar: View {
             Text(label)
                 .font(.system(.callout, design: .monospaced, weight: .medium))
                 .foregroundStyle(Theme.textSecondary)
-                .frame(minWidth: 36, minHeight: 36)
+                .frame(minWidth: 32, minHeight: 34)
                 .background(Theme.bgTertiary)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(
@@ -112,7 +134,7 @@ struct KeyboardToolbar: View {
             Text(label)
                 .font(.system(.callout, design: .monospaced, weight: .semibold))
                 .foregroundStyle(active ? Theme.bgPrimary : Theme.textSecondary)
-                .frame(minWidth: 44, minHeight: 36)
+                .frame(minWidth: 38, minHeight: 34)
                 .background(active ? Theme.accent : Theme.bgTertiary)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(

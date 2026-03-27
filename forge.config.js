@@ -24,6 +24,12 @@ module.exports = {
       /^\/\.env$/,
       /^\/\.git/,
       /^\/doc/,
+      /^\/website/,
+      /^\/ios/,
+      /^\/android/,
+      /^\/vendor/,
+      /^\/relay/,
+      /^\/out/,
       /^\/CONVERSATION\.md/,
     ],
   },
@@ -36,7 +42,7 @@ module.exports = {
       name: '@electron-forge/maker-dmg',
       config: {
         format: 'ULFO',
-        icon: './assets/icon.icns',
+        icon: require('path').resolve(__dirname, 'assets', 'icon.icns'),
       },
     },
     {
@@ -51,7 +57,7 @@ module.exports = {
         options: {
           maintainer: 'Claude Cursor',
           homepage: 'https://github.com/anthropics/claude-cursor',
-          icon: './assets/icon.png',
+          icon: require('path').resolve(__dirname, 'assets', 'icon.png'),
         },
       },
     },

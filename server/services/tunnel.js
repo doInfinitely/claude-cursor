@@ -73,6 +73,11 @@ class TunnelService {
     }
   }
 
+  async restart(port) {
+    this.stop();
+    return this.start(port);
+  }
+
   getUrl() {
     return this.url;
   }

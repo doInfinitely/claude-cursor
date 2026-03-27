@@ -104,6 +104,10 @@ actor APIClient {
         try await requestVoid("DELETE", path: "/api/sessions/\(name)")
     }
 
+    func toggleFlag(name: String) async throws {
+        try await requestVoid("POST", path: "/api/sessions/\(name)/flag")
+    }
+
     func resolveShareToken(_ token: String) async throws -> ShareInfo {
         return try await request("GET", path: "/api/sessions/share/\(token)")
     }
