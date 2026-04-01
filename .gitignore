@@ -15,4 +15,6 @@ android/ClaudeCursor/.gradle/
 android/ClaudeCursor/app/build/
 android/ClaudeCursor/local.properties
 *.jks
+keystore.properties
 ios/**/xcuserdata/
+data/

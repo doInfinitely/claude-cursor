@@ -5,7 +5,8 @@ import android.net.Uri
 data class Server(
     val id: Long = 0,
     val name: String,
-    val url: String
+    val url: String,
+    val lastSelectedSessionName: String? = null
 ) {
     val baseURL: String?
         get() {

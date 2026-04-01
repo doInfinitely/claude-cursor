@@ -6,6 +6,7 @@ final class Server {
     var id: UUID
     var name: String
     var url: String
+    var lastSelectedSessionName: String?
 
     init(name: String, url: String) {
         self.id = UUID()

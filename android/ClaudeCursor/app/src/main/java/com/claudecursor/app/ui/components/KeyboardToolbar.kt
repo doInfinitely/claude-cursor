@@ -4,8 +4,11 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -106,6 +109,7 @@ fun KeyboardToolbar(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(AppColors.bgSecondary.copy(alpha = 0.95f))
+                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 12.dp, vertical = 6.dp)
                 .navigationBarsPadding(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -128,6 +132,29 @@ fun KeyboardToolbar(
             KeyButton("\u2193") { sendKey("\u001b[B") }
             KeyButton("\u2191") { sendKey("\u001b[A") }
             KeyButton("\u2192") { sendKey("\u001b[C") }
+
+            ToolbarDivider()
+
+            KeyButton("Pst") {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
+                if (!text.isNullOrEmpty()) {
+                    sendKey(text)
+                } else {
+                    haptic()
+                }
+            }
+
+            ToolbarDivider()
+
+            // Dismiss keyboard button
+            KeyButton("\u25BC") {
+                haptic()
+                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                viewModel.webView?.let { wv ->
+                    imm.hideSoftInputFromWindow(wv.windowToken, 0)
+                }
+            }
         }
     }
 }
