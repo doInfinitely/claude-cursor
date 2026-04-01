@@ -18,3 +18,4 @@ android/ClaudeCursor/local.properties
 keystore.properties
 ios/**/xcuserdata/
 data/
+!server/data/wordlist.json
