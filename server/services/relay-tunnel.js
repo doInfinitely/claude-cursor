@@ -26,6 +26,11 @@ class RelayTunnel {
       const id = fs.readFileSync(filePath, 'utf-8').trim();
       if (id) return id;
     } catch {}
+    return this._regenerateInstanceId();
+  }
+
+  _regenerateInstanceId() {
+    const filePath = path.join(this.dataDir, 'instance-id');
     const id = Array.from({ length: 4 }, () =>
       WORDLIST[crypto.randomInt(WORDLIST.length)]
     ).join('-');
@@ -33,6 +38,15 @@ class RelayTunnel {
     fs.writeFileSync(filePath, id);
     console.log(`[RelayTunnel] Generated new instanceId: ${id}`);
     return id;
+  }
+
+  resetInstanceId() {
+    this.instanceId = this._regenerateInstanceId();
+    // Reconnect with new identity
+    if (this.ws) {
+      this.ws.close();
+    }
+    return this.instanceId;
   }
 
   start() {

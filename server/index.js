@@ -480,6 +480,7 @@ async function createApp(portStart, portEnd) {
       process.env.BASE_URL = url;
       persistEnvVar('BASE_URL', url);
     } else {
+      // Reset: generate a new instance ID
       userUrlOverride = false;
       // Reset: prefer tunnel URL, then localhost
       const fallback = tunnel.getUrl() || '';
@@ -487,16 +488,9 @@ async function createApp(portStart, portEnd) {
       delete process.env.BASE_URL;
       // Remove BASE_URL from .env
       persistEnvVar('BASE_URL', '');
-      // Use relay URL if connected, otherwise try Cloudflare
-      if (relayTunnel && relayTunnel.isConnected()) {
-        notifier.setBaseUrl(process.env.RELAY_URL || '');
-      } else {
-        const addr = server.address();
-        const newUrl = await tunnel.restart(addr.port);
-        notifier.setBaseUrl(newUrl || '');
+      if (relayTunnel) {
+        relayTunnel.resetInstanceId();
       }
-      res.json({ baseUrl: notifier.baseUrl });
-      return;
     }
     res.json({ baseUrl: notifier.baseUrl });
   });
