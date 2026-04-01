@@ -485,19 +485,13 @@ async function createApp(portStart, portEnd) {
       process.env.BASE_URL = url;
       persistEnvVar('BASE_URL', url);
     } else {
+      // Reset: generate a new instance ID
       userUrlOverride = false;
       delete process.env.BASE_URL;
       persistEnvVar('BASE_URL', '');
-      // Use relay URL if connected, otherwise try Cloudflare
-      if (relayTunnel && relayTunnel.isConnected()) {
-        notifier.setBaseUrl(process.env.RELAY_URL || '');
-      } else {
-        const addr = server.address();
-        const newUrl = await tunnel.restart(addr.port);
-        notifier.setBaseUrl(newUrl || '');
+      if (relayTunnel) {
+        relayTunnel.resetInstanceId();
       }
-      res.json({ baseUrl: notifier.baseUrl });
-      return;
     }
     res.json({ baseUrl: notifier.baseUrl });
   });
