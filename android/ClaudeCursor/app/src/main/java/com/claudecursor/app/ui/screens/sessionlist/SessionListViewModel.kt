@@ -94,12 +94,17 @@ class SessionListViewModel(application: Application) : AndroidViewModel(applicat
 
             val current = _selectedSession.value
             if (current == null || fetched.none { it.name == current.name }) {
+                val lastSelected = server.lastSelectedSessionName
                 val initial = server.initialSessionName
-                _selectedSession.value = if (initial != null) {
+                _selectedSession.value = if (lastSelected != null) {
+                    fetched.firstOrNull { it.name == lastSelected }
+                } else {
+                    null
+                } ?: if (initial != null) {
                     fetched.firstOrNull { it.name == initial }
                 } else {
-                    fetched.sortedWith(compareBy<Session> { it.actionRank }.thenByDescending { it.isRunning }).firstOrNull()
-                }
+                    null
+                } ?: fetched.sortedWith(compareBy<Session> { it.actionRank }.thenByDescending { it.isRunning }).firstOrNull()
             }
         } catch (e: Exception) {
             _error.value = e.message
@@ -110,6 +115,10 @@ class SessionListViewModel(application: Application) : AndroidViewModel(applicat
 
     fun selectSession(session: Session) {
         _selectedSession.value = session
+        val server = _server.value ?: return
+        viewModelScope.launch {
+            dao.updateLastSelectedSession(server.id, session.name)
+        }
     }
 
     fun clearError() {

@@ -8,7 +8,7 @@ const router = express.Router();
 
 const UPLOAD_DIR = path.join(os.tmpdir(), 'claude-cursor-uploads');
 
-module.exports = function (sessionManager, { notifier, shareTokens, tunnel } = {}) {
+module.exports = function (sessionManager, { notifier, shareTokens, tunnel, relayTunnel } = {}) {
   router.get('/shells', (req, res) => {
     res.json({ shells: sessionManager.getShells() });
   });
@@ -148,20 +148,20 @@ module.exports = function (sessionManager, { notifier, shareTokens, tunnel } = {
       const { token, expiresAt } = shareTokens.create(session.name, expiresIn);
 
       const relayUrl = process.env.RELAY_URL;
-      const tunnelUrl = tunnel && tunnel.getUrl();
       let shareUrl = null;
 
       if (relayUrl) {
-        if (!tunnelUrl) {
-          // Token created but can't register — clean up and error
+        const instanceId = relayTunnel && relayTunnel.getInstanceId();
+        const connected = relayTunnel && relayTunnel.isConnected();
+        if (!instanceId || !connected) {
           shareTokens.revoke(token);
-          return res.status(503).json({ error: 'Tunnel not connected yet. Please try again in a moment.' });
+          return res.status(503).json({ error: 'Relay tunnel not connected yet. Please try again in a moment.' });
         }
         try {
           await fetch(`${relayUrl}/api/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token, tunnelUrl, sessionName: session.name, expiresAt }),
+            body: JSON.stringify({ token, instanceId, sessionName: session.name, expiresAt }),
           });
           shareUrl = `${relayUrl}/s/${token}`;
         } catch (err) {

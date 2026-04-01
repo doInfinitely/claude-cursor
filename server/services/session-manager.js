@@ -272,11 +272,14 @@ class SessionManager extends EventEmitter {
     let stderrBuf = '';
     proc.stderr.on('data', (chunk) => { stderrBuf += chunk; });
 
+    // Detect shell from session name prefix (e.g. "bash-1" → "bash")
+    const detectedShell = this.shells.find(s => name.startsWith(s.id + '-'))?.id || null;
+
     const session = {
       name,
       port,
       pid: proc.pid,
-      shell: null,
+      shell: detectedShell,
       status: 'running',
       createdAt: new Date().toISOString(),
       needsAction: false,

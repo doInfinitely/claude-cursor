@@ -56,6 +56,11 @@ struct SessionListView: View {
                 setupWebSocket()
             }
         }
+        .onChange(of: selectedSession?.name) { _, newName in
+            if let newName {
+                server.lastSelectedSessionName = newName
+            }
+        }
         .onDisappear {
             wsClient.disconnect()
         }
@@ -236,7 +241,10 @@ struct SessionListView: View {
             let fetched = try await client.fetchSessions()
             sessions = fetched
             if selectedSession == nil || !fetched.contains(where: { $0.name == selectedSession?.name }) {
-                if let initial = server.initialSessionName,
+                if let last = server.lastSelectedSessionName,
+                   let match = fetched.first(where: { $0.name == last }) {
+                    selectedSession = match
+                } else if let initial = server.initialSessionName,
                    let match = fetched.first(where: { $0.name == initial }) {
                     selectedSession = match
                 } else {

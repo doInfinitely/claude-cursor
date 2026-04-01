@@ -166,7 +166,7 @@ private fun ShareView(
     val token = server.shareToken ?: return
 
     if (shareSessionName != null) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().imePadding()) {
             Box(modifier = Modifier.weight(1f)) {
                 TerminalWebView(
                     baseURL = baseURL,
@@ -221,7 +221,7 @@ private fun FullView(
 ) {
     val baseURL = server?.baseURL
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().imePadding()) {
         SessionTabBar(
             sessions = sessions,
             selected = selectedSession,

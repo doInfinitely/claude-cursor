@@ -16,4 +16,7 @@ interface ServerDao {
 
     @Query("DELETE FROM servers WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("UPDATE servers SET lastSelectedSessionName = :sessionName WHERE id = :serverId")
+    suspend fun updateLastSelectedSession(serverId: Long, sessionName: String?)
 }
