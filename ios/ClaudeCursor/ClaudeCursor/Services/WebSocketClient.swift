@@ -13,12 +13,12 @@ class WebSocketClient: ObservableObject {
 
     func connect(to baseURL: URL) {
         self.baseURL = baseURL
-        let wsScheme = baseURL.scheme == "https" ? "wss" : "ws"
-        guard let host = baseURL.host else { return }
-        var urlString = "\(wsScheme)://\(host)"
-        if let port = baseURL.port { urlString += ":\(port)" }
-        urlString += "/ws"
-        guard let wsURL = URL(string: urlString) else { return }
+        let base = baseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let wsString = base
+            .replacingOccurrences(of: "https://", with: "wss://")
+            .replacingOccurrences(of: "http://", with: "ws://")
+            + "/ws"
+        guard let wsURL = URL(string: wsString) else { return }
 
         let task = session.webSocketTask(with: wsURL)
         self.task = task
