@@ -2,7 +2,7 @@ module.exports = {
   packagerConfig: {
     name: 'Claude Cursor',
     executableName: 'claude-cursor',
-    icon: './assets/icon',
+    icon: require('path').resolve(__dirname, 'assets', 'icon'),
     asar: {
       unpackDir: 'vendor',
     },

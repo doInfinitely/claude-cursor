@@ -5,4 +5,12 @@
         <item name="android:navigationBarColor">#3b110c</item>
         <item name="android:windowBackground">#3b110c</item>
     </style>
+
+    <style name="Theme.ClaudeCursor.Splash" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#3b110c</item>
+        <item name="android:navigationBarColor">#3b110c</item>
+        <item name="android:windowBackground">#3b110c</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenBackground">#3b110c</item>
+    </style>
 </resources>

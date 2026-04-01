@@ -1,14 +1,18 @@
 const express = require('express');
 const http = require('http');
-const httpProxy = require('http-proxy');
+const crypto = require('crypto');
+const WebSocket = require('ws');
 
 const app = express();
 const server = http.createServer(app);
-const proxy = httpProxy.createProxyServer({ changeOrigin: true, ws: true });
+const wss = new WebSocket.Server({ noServer: true });
 
 app.use(express.json());
 
-// Token store: token → { tunnelUrl, sessionName, expiresAt }
+// ── Tunnel connections: instanceId → WebSocket ──
+const tunnels = new Map();
+
+// ── Token store: token → { instanceId, sessionName, expiresAt } ──
 const tokens = new Map();
 
 // Cleanup expired tokens every 10 minutes
@@ -29,6 +33,255 @@ function getEntry(token) {
   return entry;
 }
 
+// ── Tunnel WebSocket endpoint ──
+wss.on('connection', (ws) => {
+  let instanceId = null;
+
+  // Heartbeat
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
+  ws.on('message', (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw); } catch { return; }
+
+    if (msg.type === 'hello' && msg.instanceId) {
+      instanceId = msg.instanceId;
+      // Close any existing connection for this instance
+      const existing = tunnels.get(instanceId);
+      if (existing && existing !== ws && existing.readyState === WebSocket.OPEN) {
+        existing.close(1000, 'replaced');
+      }
+      tunnels.set(instanceId, ws);
+      console.log(`[Tunnel] Instance connected: ${instanceId}`);
+      ws.send(JSON.stringify({ type: 'welcome' }));
+      return;
+    }
+
+    // Route responses back to pending requests
+    if (msg.type === 'http' && msg.id) {
+      const resolve = pendingRequests.get(msg.id);
+      if (resolve) {
+        pendingRequests.delete(msg.id);
+        resolve(msg);
+      }
+      return;
+    }
+
+    // WebSocket channel data from desktop → relay → browser client
+    if (msg.type === 'ws-opened' && msg.id) {
+      const channel = wsChannels.get(msg.id);
+      if (channel) channel.ready = true;
+      return;
+    }
+
+    if (msg.type === 'ws-data' && msg.id) {
+      const channel = wsChannels.get(msg.id);
+      if (channel && channel.clientWs && channel.clientWs.readyState === WebSocket.OPEN) {
+        channel.clientWs.send(Buffer.from(msg.data, 'base64'));
+      }
+      return;
+    }
+
+    if (msg.type === 'ws-close' && msg.id) {
+      const channel = wsChannels.get(msg.id);
+      if (channel) {
+        if (channel.clientWs && channel.clientWs.readyState === WebSocket.OPEN) {
+          channel.clientWs.close();
+        }
+        wsChannels.delete(msg.id);
+      }
+      return;
+    }
+  });
+
+  ws.on('close', () => {
+    if (instanceId && tunnels.get(instanceId) === ws) {
+      tunnels.delete(instanceId);
+      console.log(`[Tunnel] Instance disconnected: ${instanceId}`);
+    }
+    // Clean up any channels associated with this tunnel
+    for (const [id, channel] of wsChannels) {
+      if (channel.tunnelWs === ws) {
+        if (channel.clientWs && channel.clientWs.readyState === WebSocket.OPEN) {
+          channel.clientWs.close();
+        }
+        wsChannels.delete(id);
+      }
+    }
+  });
+});
+
+// Heartbeat interval — ping every 30s, close dead connections
+const heartbeat = setInterval(() => {
+  for (const ws of wss.clients) {
+    if (!ws.isAlive) { ws.terminate(); continue; }
+    ws.isAlive = false;
+    ws.ping();
+  }
+}, 30000);
+
+wss.on('close', () => clearInterval(heartbeat));
+
+// ── Pending HTTP requests: reqId → resolve function ──
+const pendingRequests = new Map();
+
+// ── WebSocket channels: channelId → { clientWs, tunnelWs, ready } ──
+const wsChannels = new Map();
+
+// ── Helper: proxy an HTTP request through a tunnel WebSocket ──
+function proxyHttpThroughTunnel(tunnelWs, targetUrl, req, res) {
+  const reqId = crypto.randomBytes(8).toString('hex');
+
+  const bodyChunks = [];
+  req.on('data', (chunk) => bodyChunks.push(chunk));
+  req.on('end', () => {
+    const body = bodyChunks.length > 0 ? Buffer.concat(bodyChunks).toString('base64') : undefined;
+
+    const headers = {};
+    for (const [key, val] of Object.entries(req.headers)) {
+      if (['host', 'connection', 'upgrade'].includes(key.toLowerCase())) continue;
+      headers[key] = val;
+    }
+
+    tunnelWs.send(JSON.stringify({
+      type: 'http',
+      id: reqId,
+      method: req.method,
+      url: targetUrl,
+      headers,
+      body,
+    }));
+
+    const timeout = setTimeout(() => {
+      pendingRequests.delete(reqId);
+      if (!res.headersSent) res.status(504).send('Tunnel timeout');
+    }, 30000);
+
+    pendingRequests.set(reqId, (response) => {
+      clearTimeout(timeout);
+      try {
+        const respHeaders = response.headers || {};
+        delete respHeaders['transfer-encoding'];
+        res.writeHead(response.status || 200, respHeaders);
+        if (response.body) {
+          res.end(Buffer.from(response.body, 'base64'));
+        } else {
+          res.end();
+        }
+      } catch (err) {
+        console.error('[Proxy] Error sending response:', err.message);
+        if (!res.headersSent) res.status(500).end();
+      }
+    });
+  });
+}
+
+// ── Helper: proxy an HTTP request, rewriting HTML for path prefix ──
+function proxyHttpWithRewrite(tunnelWs, targetUrl, req, res, pathPrefix) {
+  const reqId = crypto.randomBytes(8).toString('hex');
+
+  const bodyChunks = [];
+  req.on('data', (chunk) => bodyChunks.push(chunk));
+  req.on('end', () => {
+    const body = bodyChunks.length > 0 ? Buffer.concat(bodyChunks).toString('base64') : undefined;
+
+    const headers = {};
+    for (const [key, val] of Object.entries(req.headers)) {
+      if (['host', 'connection', 'upgrade'].includes(key.toLowerCase())) continue;
+      headers[key] = val;
+    }
+
+    tunnelWs.send(JSON.stringify({
+      type: 'http',
+      id: reqId,
+      method: req.method,
+      url: targetUrl,
+      headers,
+      body,
+    }));
+
+    const timeout = setTimeout(() => {
+      pendingRequests.delete(reqId);
+      if (!res.headersSent) res.status(504).send('Tunnel timeout');
+    }, 30000);
+
+    pendingRequests.set(reqId, (response) => {
+      clearTimeout(timeout);
+      try {
+        const respHeaders = response.headers || {};
+        delete respHeaders['transfer-encoding'];
+        const contentType = (respHeaders['content-type'] || '');
+
+        if (contentType.includes('text/html') && response.body) {
+          // Rewrite HTML: inject base path rewriter script before </head>
+          let html = Buffer.from(response.body, 'base64').toString('utf-8');
+          const rewriteScript = `<script>(function(){var B="${pathPrefix}";var F=window.fetch;window.fetch=function(u,o){if(typeof u==="string"&&u.startsWith("/"))u=B+u;return F.call(this,u,o)};var X=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==="string"&&u.startsWith("/"))u=B+u;return X.apply(this,arguments)};var W=window.WebSocket;window.WebSocket=function(u,p){if(typeof u==="string"){try{var o=new URL(u);o.pathname=B+o.pathname;u=o.toString()}catch(e){if(u.startsWith("/"))u=B+u}}return p!==undefined?new W(u,p):new W(u)};window.WebSocket.prototype=W.prototype;window.WebSocket.CONNECTING=W.CONNECTING;window.WebSocket.OPEN=W.OPEN;window.WebSocket.CLOSING=W.CLOSING;window.WebSocket.CLOSED=W.CLOSED})()</script>`;
+          html = html.replace('</head>', rewriteScript + '</head>');
+          // Rewrite absolute asset paths in HTML
+          html = html.replace(/"\/(assets\/)/g, `"${pathPrefix}/$1`);
+          delete respHeaders['content-encoding'];
+          respHeaders['content-length'] = Buffer.byteLength(html);
+          res.writeHead(response.status || 200, respHeaders);
+          res.end(html);
+        } else {
+          res.writeHead(response.status || 200, respHeaders);
+          if (response.body) {
+            res.end(Buffer.from(response.body, 'base64'));
+          } else {
+            res.end();
+          }
+        }
+      } catch (err) {
+        console.error('[Proxy] Error sending response:', err.message);
+        if (!res.headersSent) res.status(500).end();
+      }
+    });
+  });
+}
+
+// ── Helper: bridge a WebSocket through a tunnel ──
+function bridgeWebSocket(tunnelWs, targetUrl, req, socket, head) {
+  const channelId = crypto.randomBytes(8).toString('hex');
+  const clientWss = new WebSocket.Server({ noServer: true });
+  clientWss.handleUpgrade(req, socket, head, (clientWs) => {
+    wsChannels.set(channelId, { clientWs, tunnelWs, ready: false });
+
+    tunnelWs.send(JSON.stringify({
+      type: 'ws-open',
+      id: channelId,
+      url: targetUrl,
+    }));
+
+    clientWs.on('message', (data) => {
+      if (tunnelWs.readyState === WebSocket.OPEN) {
+        const encoded = Buffer.isBuffer(data) ? data.toString('base64') : Buffer.from(data).toString('base64');
+        tunnelWs.send(JSON.stringify({
+          type: 'ws-data',
+          id: channelId,
+          data: encoded,
+        }));
+      }
+    });
+
+    clientWs.on('close', () => {
+      wsChannels.delete(channelId);
+      if (tunnelWs.readyState === WebSocket.OPEN) {
+        tunnelWs.send(JSON.stringify({ type: 'ws-close', id: channelId }));
+      }
+    });
+
+    clientWs.on('error', () => {
+      wsChannels.delete(channelId);
+      if (tunnelWs.readyState === WebSocket.OPEN) {
+        tunnelWs.send(JSON.stringify({ type: 'ws-close', id: channelId }));
+      }
+    });
+  });
+}
+
+// ── REST API ──
+
 // List all active tokens
 app.get('/api/tokens', (req, res) => {
   const now = Date.now();
@@ -37,7 +290,7 @@ app.get('/api/tokens', (req, res) => {
     if (now <= entry.expiresAt) {
       list.push({
         token: token.slice(0, 8) + '…',
-        tunnelUrl: entry.tunnelUrl,
+        instanceId: entry.instanceId,
         sessionName: entry.sessionName,
         expiresAt: new Date(entry.expiresAt).toISOString(),
       });
@@ -48,25 +301,25 @@ app.get('/api/tokens', (req, res) => {
 
 // Register a share token
 app.post('/api/register', (req, res) => {
-  const { token, tunnelUrl, sessionName, expiresAt } = req.body;
-  if (!token || !tunnelUrl || !sessionName) {
-    return res.status(400).json({ error: 'token, tunnelUrl, and sessionName are required' });
+  const { token, instanceId, sessionName, expiresAt } = req.body;
+  if (!token || !instanceId || !sessionName) {
+    return res.status(400).json({ error: 'token, instanceId, and sessionName are required' });
   }
   tokens.set(token, {
-    tunnelUrl: tunnelUrl.replace(/\/$/, ''),
+    instanceId,
     sessionName,
     expiresAt: expiresAt ? new Date(expiresAt).getTime() : Date.now() + 24 * 60 * 60 * 1000,
   });
-  console.log(`[Register] token=${token.slice(0, 8)}… → ${tunnelUrl} session=${sessionName}`);
+  console.log(`[Register] token=${token.slice(0, 8)}… → instance=${instanceId} session=${sessionName}`);
   res.json({ ok: true });
 });
 
 // Revoke tokens for a session
 app.post('/api/revoke', (req, res) => {
-  const { tunnelUrl, sessionName } = req.body;
+  const { instanceId, sessionName } = req.body;
   let count = 0;
   for (const [token, entry] of tokens) {
-    if (entry.sessionName === sessionName && (!tunnelUrl || entry.tunnelUrl === tunnelUrl)) {
+    if (entry.sessionName === sessionName && (!instanceId || entry.instanceId === instanceId)) {
       tokens.delete(token);
       count++;
     }
@@ -79,7 +332,8 @@ app.post('/api/revoke', (req, res) => {
 app.get('/api/sessions/share/:token', (req, res) => {
   const entry = getEntry(req.params.token);
   if (!entry) return res.status(404).json({ error: 'Link expired or invalid' });
-  res.json({ sessionName: entry.sessionName, status: 'active' });
+  const online = tunnels.has(entry.instanceId);
+  res.json({ sessionName: entry.sessionName, status: online ? 'active' : 'offline' });
 });
 
 // Share page — serves minimal HTML with iframe to proxied terminal
@@ -97,30 +351,70 @@ app.get('/s/:token', (req, res) => {
 </body></html>`);
 });
 
-// Proxy terminal traffic: /p/<token>/* → tunnelUrl/terminal/<sessionName>/*
+// ── Full-app proxy: /a/<instanceId>/* → desktop app ──
+app.use('/a/:instanceId', (req, res) => {
+  const tunnelWs = tunnels.get(req.params.instanceId);
+  if (!tunnelWs || tunnelWs.readyState !== WebSocket.OPEN) {
+    return res.status(502).send('Desktop app is offline');
+  }
+
+  const targetUrl = req.url === '/' ? '/' : req.url;
+  const pathPrefix = `/a/${req.params.instanceId}`;
+  proxyHttpWithRewrite(tunnelWs, targetUrl, req, res, pathPrefix);
+});
+
+// ── Per-session proxy: /p/<token>/* → desktop terminal ──
 app.use('/p/:token', (req, res) => {
   const entry = getEntry(req.params.token);
   if (!entry) return res.status(404).send('Link expired or invalid');
-  req.url = `/terminal/${entry.sessionName}${req.url}`;
-  proxy.web(req, res, { target: entry.tunnelUrl });
-});
 
-proxy.on('error', (err, req, res) => {
-  console.error('[Proxy] error:', err.message);
-  if (res && typeof res.writeHead === 'function' && !res.headersSent) {
-    res.writeHead(502, { 'Content-Type': 'text/plain' });
-    res.end('Tunnel unreachable');
+  const tunnelWs = tunnels.get(entry.instanceId);
+  if (!tunnelWs || tunnelWs.readyState !== WebSocket.OPEN) {
+    return res.status(502).send('Desktop app is offline');
   }
+
+  const targetUrl = `/terminal/${entry.sessionName}${req.url}`;
+  proxyHttpThroughTunnel(tunnelWs, targetUrl, req, res);
 });
 
-// WebSocket upgrades for /p/<token>/*
+// ── WebSocket upgrades ──
 server.on('upgrade', (req, socket, head) => {
-  const match = /^\/p\/([a-f0-9]+)(\/.*)?$/.exec(req.url);
+  // Tunnel endpoint
+  if (req.url === '/tunnel') {
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
+    return;
+  }
+
+  // Full-app WebSocket proxy: /a/<instanceId>/*
+  const appMatch = /^\/a\/([a-z0-9-]+)(\/.*)?$/.exec(req.url);
+  if (appMatch) {
+    const tunnelWs = tunnels.get(appMatch[1]);
+    if (!tunnelWs || tunnelWs.readyState !== WebSocket.OPEN) {
+      socket.destroy();
+      return;
+    }
+    const targetUrl = appMatch[2] || '/';
+    bridgeWebSocket(tunnelWs, targetUrl, req, socket, head);
+    return;
+  }
+
+  // Per-session WebSocket proxy: /p/<token>/*
+  const match = /^\/p\/([a-z0-9-]+)(\/.*)?$/.exec(req.url);
   if (!match) { socket.destroy(); return; }
+
   const entry = getEntry(match[1]);
   if (!entry) { socket.destroy(); return; }
-  req.url = `/terminal/${entry.sessionName}${match[2] || '/'}`;
-  proxy.ws(req, socket, head, { target: entry.tunnelUrl });
+
+  const tunnelWs = tunnels.get(entry.instanceId);
+  if (!tunnelWs || tunnelWs.readyState !== WebSocket.OPEN) {
+    socket.destroy();
+    return;
+  }
+
+  const targetUrl = `/terminal/${entry.sessionName}${match[2] || '/'}`;
+  bridgeWebSocket(tunnelWs, targetUrl, req, socket, head);
 });
 
 const PORT = parseInt(process.env.PORT || '4000', 10);

@@ -2,7 +2,7 @@ require('dotenv').config();
 
 // Hardcoded relay URL — share links always go through this relay
 if (!process.env.RELAY_URL) {
-  process.env.RELAY_URL = 'https://claude-cursor-relay-production.up.railway.app';
+  process.env.RELAY_URL = 'https://terminal.claudecursor.com';
 }
 const express = require('express');
 const fs = require('fs');
@@ -67,6 +67,7 @@ const NotifierService = require('./services/notifier');
 const DiscordBot = require('./services/discord-bot');
 const SlackBot = require('./services/slack-bot');
 const TunnelService = require('./services/tunnel');
+const RelayTunnel = require('./services/relay-tunnel');
 const sessionsRoute = require('./routes/sessions');
 const ShareTokenStore = require('./services/share-tokens');
 const RemoteServers = require('./services/remote-servers');
@@ -88,7 +89,16 @@ async function createApp(portStart, portEnd) {
   });
 
   const sessionManager = new SessionManager(portStart, portEnd);
-  const shareTokens = new ShareTokenStore();
+
+  // Resolve data directory for persistent storage
+  let dataDir;
+  try {
+    const { app: electronApp } = require('electron');
+    dataDir = path.join(electronApp.getPath('userData'), 'data');
+  } catch {
+    dataDir = path.join(__dirname, '..', 'data');
+  }
+  const shareTokens = new ShareTokenStore(dataDir);
 
   // Notification bots (start lazily — they connect only if tokens are configured)
   const discordBot = new DiscordBot();
@@ -222,8 +232,15 @@ async function createApp(portStart, portEnd) {
   // Tunnel service (created early so share routes can access tunnel URL)
   const tunnel = new TunnelService();
 
+  // Relay tunnel (WebSocket-based, replaces Cloudflare for share links)
+  const relayTunnel = new RelayTunnel(
+    process.env.RELAY_URL,
+    parseInt(process.env.PORT || '3000', 10),
+    dataDir
+  );
+
   // API routes
-  app.use('/api/sessions', sessionsRoute(sessionManager, { notifier, shareTokens, tunnel }));
+  app.use('/api/sessions', sessionsRoute(sessionManager, { notifier, shareTokens, tunnel, relayTunnel }));
 
   // Remote servers
   const remoteServers = new RemoteServers();
@@ -440,7 +457,17 @@ async function createApp(portStart, portEnd) {
 
   // Tunnel status API
   app.get('/api/tunnel/status', (req, res) => {
-    res.json({ url: tunnel.getUrl(), active: !!tunnel.getUrl(), baseUrl: notifier.baseUrl });
+    const relayUrl = process.env.RELAY_URL || null;
+    const relayConnected = relayTunnel && relayTunnel.isConnected();
+    const instanceId = relayTunnel && relayTunnel.getInstanceId();
+    const appUrl = relayUrl && instanceId ? `${relayUrl}/a/${instanceId}` : null;
+    const cfUrl = tunnel.getUrl();
+    res.json({
+      url: appUrl || cfUrl,
+      active: relayConnected || !!cfUrl,
+      relay: relayConnected,
+      baseUrl: notifier.baseUrl,
+    });
   });
 
   let userUrlOverride = !!process.env.BASE_URL;
@@ -460,6 +487,16 @@ async function createApp(portStart, portEnd) {
       delete process.env.BASE_URL;
       // Remove BASE_URL from .env
       persistEnvVar('BASE_URL', '');
+      // Use relay URL if connected, otherwise try Cloudflare
+      if (relayTunnel && relayTunnel.isConnected()) {
+        notifier.setBaseUrl(process.env.RELAY_URL || '');
+      } else {
+        const addr = server.address();
+        const newUrl = await tunnel.restart(addr.port);
+        notifier.setBaseUrl(newUrl || '');
+      }
+      res.json({ baseUrl: notifier.baseUrl });
+      return;
     }
     res.json({ baseUrl: notifier.baseUrl });
   });
@@ -575,13 +612,13 @@ async function createApp(portStart, portEnd) {
         await fetch(`${relayUrl}/api/revoke`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tunnelUrl: tunnel.getUrl(), sessionName: session.name }),
+          body: JSON.stringify({ instanceId: relayTunnel.getInstanceId(), sessionName: session.name }),
         });
       } catch {}
     }
   });
 
-  return { app, server, sessionManager, shareTokens, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval, get userUrlOverride() { return userUrlOverride; } };
+  return { app, server, sessionManager, shareTokens, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, relayTunnel, apiKeyHealthInterval, get userUrlOverride() { return userUrlOverride; } };
 }
 
 async function start(port, host) {
@@ -589,7 +626,7 @@ async function start(port, host) {
   const portEnd = parseInt(process.env.TTYD_PORT_RANGE_END || '7780', 10);
 
   const appResult = await createApp(portStart, portEnd);
-  const { server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval } = appResult;
+  const { server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, relayTunnel, apiKeyHealthInterval } = appResult;
 
   return new Promise((resolve) => {
     server.listen(port, host, async () => {
@@ -604,14 +641,25 @@ async function start(port, host) {
       await slackBot.start();
       notifier.start();
 
-      // Start tunnel (non-blocking — works without cloudflared)
+      // Start relay tunnel (WebSocket-based share link tunnel)
+      relayTunnel.localPort = addr.port;
+      relayTunnel.start();
+
+      // Start Cloudflare tunnel (non-blocking — works without cloudflared)
       tunnel.start(addr.port).then((tunnelUrl) => {
-        if (tunnelUrl && !appResult.userUrlOverride) {
+        if (tunnel.isTokenMode()) {
+          // Named tunnel: BASE_URL is the authoritative URL
+          const baseUrl = process.env.BASE_URL;
+          if (baseUrl) {
+            notifier.setBaseUrl(baseUrl);
+            console.log(`[Tunnel] Using BASE_URL for named tunnel: ${baseUrl}`);
+          }
+        } else if (tunnelUrl && !appResult.userUrlOverride) {
           notifier.setBaseUrl(tunnelUrl);
         }
       });
 
-      resolve({ server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, apiKeyHealthInterval });
+      resolve({ server, sessionManager, needsActionService, descriptionService, notifier, discordBot, slackBot, tunnel, relayTunnel, apiKeyHealthInterval });
     });
   });
 }
@@ -621,12 +669,13 @@ if (require.main === module) {
   const PORT = parseInt(process.env.PORT || '3000', 10);
   const HOST = process.env.HOST || '0.0.0.0';
 
-  start(PORT, HOST).then(({ sessionManager, shareTokens, needsActionService, descriptionService, discordBot, slackBot, tunnel, apiKeyHealthInterval }) => {
+  start(PORT, HOST).then(({ sessionManager, shareTokens, needsActionService, descriptionService, discordBot, slackBot, tunnel, relayTunnel, apiKeyHealthInterval }) => {
     function cleanup() {
       console.log('\nCleaning up...');
       if (apiKeyHealthInterval) clearInterval(apiKeyHealthInterval);
       shareTokens.stop();
       tunnel.stop();
+      relayTunnel.stop();
       needsActionService.stop();
       descriptionService.stop();
       discordBot.stop();
