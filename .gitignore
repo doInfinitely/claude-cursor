@@ -9,3 +9,10 @@ out/
 .DS_Store
 .claude
 frontend/.vscode/
+website/.next/
+website/.playwright-temp/
+android/ClaudeCursor/.gradle/
+android/ClaudeCursor/app/build/
+android/ClaudeCursor/local.properties
+*.jks
+ios/**/xcuserdata/
