@@ -15,28 +15,28 @@ private const val USER_AGENT =
     "Chrome/120.0.0.0 Mobile Safari/537.36 ClaudeCursorCompanion/1.0"
 
 interface ApiService {
-    @GET("/api/sessions")
+    @GET("api/sessions")
     suspend fun getSessions(): SessionsResponse
 
-    @GET("/api/sessions/shells")
+    @GET("api/sessions/shells")
     suspend fun getShells(): ShellsResponse
 
-    @POST("/api/sessions")
+    @POST("api/sessions")
     suspend fun createSession(@Body body: CreateSessionRequest)
 
-    @POST("/api/sessions/{name}/stop")
+    @POST("api/sessions/{name}/stop")
     suspend fun stopSession(@Path("name") name: String)
 
-    @POST("/api/sessions/{name}/restart")
+    @POST("api/sessions/{name}/restart")
     suspend fun restartSession(@Path("name") name: String)
 
-    @DELETE("/api/sessions/{name}")
+    @DELETE("api/sessions/{name}")
     suspend fun deleteSession(@Path("name") name: String)
 
-    @POST("/api/sessions/{name}/flag")
+    @POST("api/sessions/{name}/flag")
     suspend fun toggleFlag(@Path("name") name: String)
 
-    @GET("/api/sessions/share/{token}")
+    @GET("api/sessions/share/{token}")
     suspend fun resolveShareToken(@Path("token") token: String): ShareInfoDto
 }
 
