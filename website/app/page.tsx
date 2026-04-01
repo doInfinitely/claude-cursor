@@ -30,7 +30,7 @@ export default function Home() {
             they need attention.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
             <Link
               href="/download"
               className="px-8 py-3.5 rounded-xl bg-[#dd5013] text-[#f8eed2] font-semibold text-lg hover:bg-[#e87838] transition-all shadow-lg shadow-[#dd5013]/20"
@@ -43,6 +43,31 @@ export default function Home() {
             >
               See features
             </a>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+            <a
+              href="https://apps.apple.com/us/app/claude-cursor-companion/id6760676787"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-xl border border-[#5d3d3a] bg-[#3b110c]/80 hover:bg-[#4d1e17]/60 text-[#f8eed2] transition-colors"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+              <div className="text-left">
+                <div className="text-[10px] text-[#8a7a6a] leading-none">Download on the</div>
+                <div className="text-sm font-semibold leading-tight">App Store</div>
+              </div>
+            </a>
+            <Link
+              href="/android-testing"
+              className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-xl border border-[#5d3d3a] bg-[#3b110c]/80 hover:bg-[#4d1e17]/60 text-[#f8eed2] transition-colors"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 2.236l1.442-1.442a.5.5 0 01.707.707l-1.57 1.57A7.962 7.962 0 0121 8H3a7.962 7.962 0 012.898-4.929l-1.57-1.57a.5.5 0 01.707-.707l1.442 1.442A7.94 7.94 0 0112 0a7.94 7.94 0 015.523 2.236zM3 10v8a2 2 0 002 2h14a2 2 0 002-2v-8H3zM9 5a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2z"/></svg>
+              <div className="text-left">
+                <div className="text-[10px] text-[#8a7a6a] leading-none">Get it on</div>
+                <div className="text-sm font-semibold leading-tight">Google Play</div>
+              </div>
+            </Link>
           </div>
 
           <div className="relative max-w-5xl mx-auto">
