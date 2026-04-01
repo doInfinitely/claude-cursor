@@ -184,12 +184,14 @@ class RelayTunnel {
   _channels = new Map();
 
   _handleWsOpen(msg) {
-    const { id, url } = msg;
+    const { id, url, protocols } = msg;
     const wsUrl = `ws://127.0.0.1:${this.localPort}${url}`;
 
     let localWs;
     try {
-      localWs = new WebSocket(wsUrl);
+      localWs = protocols && protocols.length > 0
+        ? new WebSocket(wsUrl, protocols)
+        : new WebSocket(wsUrl);
     } catch (err) {
       console.error(`[RelayTunnel] Failed to open local WS for channel ${id}:`, err.message);
       this._send({ type: 'ws-close', id });

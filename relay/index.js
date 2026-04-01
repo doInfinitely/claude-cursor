@@ -211,12 +211,16 @@ function proxyHttpWithRewrite(tunnelWs, targetUrl, req, res, pathPrefix) {
       try {
         const respHeaders = response.headers || {};
         delete respHeaders['transfer-encoding'];
+        // Rewrite Location header for redirects
+        if (respHeaders['location'] && respHeaders['location'].startsWith('/') && !respHeaders['location'].startsWith(pathPrefix + '/')) {
+          respHeaders['location'] = pathPrefix + respHeaders['location'];
+        }
         const contentType = (respHeaders['content-type'] || '');
 
         if (contentType.includes('text/html') && response.body) {
           // Rewrite HTML: inject base path rewriter script before </head>
           let html = Buffer.from(response.body, 'base64').toString('utf-8');
-          const rewriteScript = `<script>(function(){var B="${pathPrefix}";var F=window.fetch;window.fetch=function(u,o){if(typeof u==="string"&&u.startsWith("/"))u=B+u;return F.call(this,u,o)};var X=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==="string"&&u.startsWith("/"))u=B+u;return X.apply(this,arguments)};var W=window.WebSocket;window.WebSocket=function(u,p){if(typeof u==="string"){try{var o=new URL(u);o.pathname=B+o.pathname;u=o.toString()}catch(e){if(u.startsWith("/"))u=B+u}}return p!==undefined?new W(u,p):new W(u)};window.WebSocket.prototype=W.prototype;window.WebSocket.CONNECTING=W.CONNECTING;window.WebSocket.OPEN=W.OPEN;window.WebSocket.CLOSING=W.CLOSING;window.WebSocket.CLOSED=W.CLOSED})()</script>`;
+          const rewriteScript = `<script>(function(){var B="${pathPrefix}";function rw(u){return typeof u==="string"&&u.startsWith("/")&&!u.startsWith(B+"/")?B+u:u}var F=window.fetch;window.fetch=function(u,o){return F.call(this,rw(u),o)};var X=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){arguments[1]=rw(u);return X.apply(this,arguments)};var W=window.WebSocket;window.WebSocket=function(u,p){if(typeof u==="string"){try{var o=new URL(u);if(!o.pathname.startsWith(B+"/")){o.pathname=B+o.pathname;u=o.toString()}}catch(e){u=rw(u)}}return p!==undefined?new W(u,p):new W(u)};window.WebSocket.prototype=W.prototype;window.WebSocket.CONNECTING=W.CONNECTING;window.WebSocket.OPEN=W.OPEN;window.WebSocket.CLOSING=W.CLOSING;window.WebSocket.CLOSED=W.CLOSED;var D=Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype,"src");Object.defineProperty(HTMLIFrameElement.prototype,"src",{set:function(v){return D.set.call(this,rw(v))},get:D.get});var SA=Element.prototype.setAttribute;Element.prototype.setAttribute=function(n,v){if(n==="src"&&this.tagName==="IFRAME")v=rw(v);return SA.call(this,n,v)}})()</script>`;
           html = html.replace('</head>', rewriteScript + '</head>');
           // Rewrite absolute asset paths in HTML
           html = html.replace(/"\/(assets\/)/g, `"${pathPrefix}/$1`);
@@ -243,7 +247,9 @@ function proxyHttpWithRewrite(tunnelWs, targetUrl, req, res, pathPrefix) {
 // ── Helper: bridge a WebSocket through a tunnel ──
 function bridgeWebSocket(tunnelWs, targetUrl, req, socket, head) {
   const channelId = crypto.randomBytes(8).toString('hex');
-  const clientWss = new WebSocket.Server({ noServer: true });
+  // Extract subprotocols from client request
+  const protocols = (req.headers['sec-websocket-protocol'] || '').split(',').map(s => s.trim()).filter(Boolean);
+  const clientWss = new WebSocket.Server({ noServer: true, handleProtocols: () => protocols[0] || false });
   clientWss.handleUpgrade(req, socket, head, (clientWs) => {
     wsChannels.set(channelId, { clientWs, tunnelWs, ready: false });
 
@@ -251,6 +257,7 @@ function bridgeWebSocket(tunnelWs, targetUrl, req, socket, head) {
       type: 'ws-open',
       id: channelId,
       url: targetUrl,
+      protocols,
     }));
 
     clientWs.on('message', (data) => {

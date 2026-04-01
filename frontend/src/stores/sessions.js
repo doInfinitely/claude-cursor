@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+// Detect relay path prefix (e.g. /a/instanceId) from current URL
+const pathPrefix = (window.location.pathname.match(/^\/a\/[^/]+/) || [''])[0]
+
 export const useSessionStore = defineStore('sessions', () => {
   const sessions = ref([])
   const shells = ref([])
@@ -33,7 +36,7 @@ export const useSessionStore = defineStore('sessions', () => {
       ...s,
       remote: false,
       displayKey: s.name,
-      terminalUrl: s.status === 'running' ? `/terminal/${s.name}` : null,
+      terminalUrl: s.status === 'running' ? `${pathPrefix}/terminal/${s.name}/` : null,
     }))
     const remote = remoteSessionsFlat.value.map(s => ({
       ...s,
@@ -54,7 +57,7 @@ export const useSessionStore = defineStore('sessions', () => {
     // Local session
     const session = sessions.value.find(s => s.name === current.value)
     if (!session || session.status !== 'running') return null
-    return `/terminal/${session.name}`
+    return `${pathPrefix}/terminal/${session.name}/`
   })
 
   async function fetchSessions() {
