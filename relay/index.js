@@ -29,6 +29,23 @@ function getEntry(token) {
   return entry;
 }
 
+// List all active tokens
+app.get('/api/tokens', (req, res) => {
+  const now = Date.now();
+  const list = [];
+  for (const [token, entry] of tokens) {
+    if (now <= entry.expiresAt) {
+      list.push({
+        token: token.slice(0, 8) + '…',
+        tunnelUrl: entry.tunnelUrl,
+        sessionName: entry.sessionName,
+        expiresAt: new Date(entry.expiresAt).toISOString(),
+      });
+    }
+  }
+  res.json({ count: list.length, tokens: list });
+});
+
 // Register a share token
 app.post('/api/register', (req, res) => {
   const { token, tunnelUrl, sessionName, expiresAt } = req.body;
