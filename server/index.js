@@ -569,6 +569,8 @@ async function createApp(portStart, portEnd) {
       if (!valid) {
         console.warn('[ApiKey] Health check failed — broadcasting alert');
         broadcastWs('apiKeyInvalid', { message: 'API key validation failed' });
+      } else {
+        broadcastWs('apiKeyValid', {});
       }
     }, 5 * 60 * 1000);
   }
