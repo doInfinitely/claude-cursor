@@ -132,6 +132,10 @@ export const useSessionStore = defineStore('sessions', () => {
           apiKeyAlert.value = true
           return
         }
+        if (msg.event === 'apiKeyValid') {
+          apiKeyAlert.value = false
+          return
+        }
       } catch {}
       fetchSessions()
     }
@@ -154,11 +158,19 @@ export const useSessionStore = defineStore('sessions', () => {
     }, reconnectDelay)
   }
 
+  async function checkApiKeyAlert() {
+    try {
+      const status = await fetchApiKeyStatus()
+      apiKeyAlert.value = status.configured && !status.valid
+    } catch {}
+  }
+
   function init() {
     fetchSessions()
     fetchShells()
     connectWs()
     fetchRemoteServers()
+    checkApiKeyAlert()
   }
 
   async function create({ command, name }) {
