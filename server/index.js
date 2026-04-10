@@ -25,12 +25,17 @@ function persistEnvVar(key, value) {
   let content = '';
   try { content = fs.readFileSync(envPath, 'utf-8'); } catch { /* new file */ }
 
-  const re = new RegExp(`^${key}=.*$`, 'm');
-  const line = `${key}=${value}`;
-  if (re.test(content)) {
-    content = content.replace(re, line);
+  const re = new RegExp(`^${key}=.*\n?`, 'm');
+  if (!value) {
+    // Remove the line entirely
+    content = content.replace(re, '');
   } else {
-    content = content.trimEnd() + '\n' + line + '\n';
+    const line = `${key}=${value}`;
+    if (re.test(content)) {
+      content = content.replace(re, line + '\n');
+    } else {
+      content = content.trimEnd() + '\n' + line + '\n';
+    }
   }
   fs.mkdirSync(path.dirname(envPath), { recursive: true });
   fs.writeFileSync(envPath, content);
@@ -423,8 +428,9 @@ async function createApp(portStart, portEnd) {
 
   // Serve frontend — Vite middleware in dev, static files in production
   const isDev = process.env.NODE_ENV !== 'production';
+  const frontendSrcExists = fs.existsSync(path.join(__dirname, '..', 'frontend', 'src'));
   let viteDevServer = null;
-  if (isDev) {
+  if (isDev && frontendSrcExists) {
     const { createServer: createViteServer } = await import('vite');
     viteDevServer = await createViteServer({
       root: path.join(__dirname, '..', 'frontend'),
@@ -482,8 +488,12 @@ async function createApp(portStart, portEnd) {
     } else {
       // Reset: generate a new instance ID
       userUrlOverride = false;
-      // Reset: prefer tunnel URL, then localhost
-      const fallback = tunnel.getUrl() || '';
+      // Reset: prefer relay URL, then tunnel URL, then empty
+      const relayUrl = process.env.RELAY_URL;
+      const instanceId = relayTunnel && relayTunnel.getInstanceId();
+      const fallback = (relayUrl && instanceId && relayTunnel.isConnected())
+        ? `${relayUrl}/a/${instanceId}`
+        : (tunnel.getUrl() || '');
       notifier.setBaseUrl(fallback);
       delete process.env.BASE_URL;
       // Remove BASE_URL from .env
@@ -641,6 +651,25 @@ async function start(port, host) {
       relayTunnel.localPort = addr.port;
       relayTunnel.start();
 
+      // Set notifier base URL to relay URL once connected
+      const relayUrl = process.env.RELAY_URL;
+      if (relayUrl && !appResult.userUrlOverride) {
+        // Poll briefly for relay connection, then set base URL
+        const relayCheck = setInterval(() => {
+          if (relayTunnel.isConnected()) {
+            clearInterval(relayCheck);
+            const instanceId = relayTunnel.getInstanceId();
+            const url = `${relayUrl}/a/${instanceId}`;
+            if (!appResult.userUrlOverride) {
+              notifier.setBaseUrl(url);
+              console.log(`[RelayTunnel] Base URL set to ${url}`);
+            }
+          }
+        }, 500);
+        // Stop polling after 30s
+        setTimeout(() => clearInterval(relayCheck), 30000);
+      }
+
       // Start Cloudflare tunnel (non-blocking — works without cloudflared)
       tunnel.start(addr.port).then((tunnelUrl) => {
         if (tunnel.isTokenMode()) {
@@ -650,7 +679,8 @@ async function start(port, host) {
             notifier.setBaseUrl(baseUrl);
             console.log(`[Tunnel] Using BASE_URL for named tunnel: ${baseUrl}`);
           }
-        } else if (tunnelUrl && !appResult.userUrlOverride) {
+        } else if (tunnelUrl && !appResult.userUrlOverride && !relayTunnel.isConnected()) {
+          // Only use cloudflare URL if relay isn't connected
           notifier.setBaseUrl(tunnelUrl);
         }
       });
