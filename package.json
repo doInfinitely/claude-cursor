@@ -6,7 +6,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "node server/index.js",
-    "build": "cd frontend && npm run build",
+    "build": "cd frontend && npm ci && npm run build",
     "start": "NODE_ENV=production node server/index.js",
     "electron:dev": "npm run build && electron .",
     "electron:package": "npm run build && electron-forge package",
