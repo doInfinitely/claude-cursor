@@ -7,7 +7,10 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ noServer: true });
 
-app.use(express.json());
+// JSON parsing must NOT apply to the tunnel proxy routes (/a/*, /p/*):
+// it consumes the request stream, so the proxy helpers' 'data'/'end'
+// listeners never fire and proxied POSTs hang forever. Scope it to the
+// relay's own API routes instead (see app.post below).
 
 // ── Tunnel connections: instanceId → WebSocket ──
 const tunnels = new Map();
@@ -307,7 +310,7 @@ app.get('/api/tokens', (req, res) => {
 });
 
 // Register a share token
-app.post('/api/register', (req, res) => {
+app.post('/api/register', express.json(), (req, res) => {
   const { token, instanceId, sessionName, expiresAt } = req.body;
   if (!token || !instanceId || !sessionName) {
     return res.status(400).json({ error: 'token, instanceId, and sessionName are required' });
@@ -322,7 +325,7 @@ app.post('/api/register', (req, res) => {
 });
 
 // Revoke tokens for a session
-app.post('/api/revoke', (req, res) => {
+app.post('/api/revoke', express.json(), (req, res) => {
   const { instanceId, sessionName } = req.body;
   let count = 0;
   for (const [token, entry] of tokens) {
